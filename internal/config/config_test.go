@@ -26,7 +26,7 @@ func TestWatchConfigEntriesFromSources(t *testing.T) {
 	}
 }
 
-func TestWatchConfigEntriesLegacyPathsAndPatterns(t *testing.T) {
+func TestWatchConfigEntriesFromPathsAndPatterns(t *testing.T) {
 	t.Parallel()
 
 	cfg := WatchConfig{

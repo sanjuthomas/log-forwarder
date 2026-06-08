@@ -69,11 +69,11 @@ Controls which log files are tailed.
 | Field | Description |
 |-------|-------------|
 | `poll` | How often to rescan directories (e.g. `1s`, `500ms`) |
-| `paths` | Legacy: list of directories to watch |
-| `patterns` | Legacy: glob patterns applied to every path in `paths` |
-| `sources` | Preferred: per-directory watch entries with their own patterns |
+| `sources` | Per-directory watch entries, each with its own `patterns` |
+| `paths` | Directories to watch when all use the same `patterns` |
+| `patterns` | Glob patterns applied to every path in `paths` |
 
-Use either `sources` **or** the legacy `paths` + `patterns` pair.
+Use **`sources`** when patterns differ per directory, or **`paths`** + **`patterns`** when every directory shares the same globs.
 
 **`sources` example** (different patterns per directory):
 
@@ -92,7 +92,7 @@ watch:
         - "*.log"
 ```
 
-**Legacy example** (shared patterns):
+**Shared patterns example** (same globs for every path):
 
 ```yaml
 watch:
