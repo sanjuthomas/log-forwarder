@@ -1,0 +1,47 @@
+watch:
+  poll: 1s
+  sources:
+    - path: ./logs/app
+      patterns:
+        - "*.log"
+        - "*.log.*"
+        - "*.out"
+        - "*.jsonl"
+    - path: ./logs/nginx
+      patterns:
+        - "*.log"
+        - "*.log.*"
+        - "*.jsonl"
+    - path: /var/log/my-service
+      patterns:
+        - "*.log"
+        - "*.log.*"
+        - "*.out"
+        - "*.jsonl"
+
+kafka:
+  brokers:
+    - localhost:9092
+  topic: logs
+
+transform:
+  # Delimiter-based parsing (default). Set type to "regex" for pattern-based parsing
+  # (see configs/example-regex.yaml).
+  type: delimiter
+  delimiter: "\t"
+  columns:
+    - timestamp
+    - level
+    - message
+  on_error: wrap
+
+enrichers:
+  - type: static
+    fields:
+      application_id: billing-service
+      environment: dev
+  - type: host
+
+pipeline:
+  buffer_size: 1024
+  on_full: block

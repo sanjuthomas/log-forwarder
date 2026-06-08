@@ -1,0 +1,29 @@
+watch:
+  poll: 1s
+  sources:
+    - path: ./logs/app
+      patterns:
+        - "*.log"
+        - "*.log.*"
+        - "*.out"
+
+kafka:
+  brokers:
+    - localhost:9092
+  topic: logs
+
+transform:
+  type: regex
+  pattern: '^(?P<timestamp>\S+)\s+(?P<level>\S+)\s+(?P<message>.*)$'
+  on_error: wrap
+
+enrichers:
+  - type: static
+    fields:
+      application_id: billing-service
+      environment: dev
+  - type: host
+
+pipeline:
+  buffer_size: 1024
+  on_full: block
