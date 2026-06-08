@@ -31,7 +31,11 @@ func main() {
 
 	lines := make(chan watcher.LineEvent, cfg.Pipeline.BufferSize)
 
-	kafkaSink := sink.NewKafka(cfg.Kafka)
+	kafkaSink, err := sink.NewKafka(cfg.Kafka)
+	if err != nil {
+		logger.Error("create kafka sink", "error", err)
+		os.Exit(1)
+	}
 	defer func() {
 		if err := kafkaSink.Close(); err != nil {
 			logger.Error("close kafka sink", "error", err)

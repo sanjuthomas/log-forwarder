@@ -13,17 +13,23 @@ type KafkaSink struct {
 	writer *kafka.Writer
 }
 
-func NewKafka(cfg config.KafkaConfig) *KafkaSink {
+func NewKafka(cfg config.KafkaConfig) (*KafkaSink, error) {
+	dialer, err := buildDialer(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("kafka dialer: %w", err)
+	}
+
 	return &KafkaSink{
-		writer: &kafka.Writer{
-			Addr:         kafka.TCP(cfg.Brokers...),
+		writer: kafka.NewWriter(kafka.WriterConfig{
+			Brokers:      cfg.Brokers,
 			Topic:        cfg.Topic,
 			Balancer:     &kafka.LeastBytes{},
 			BatchTimeout: 10 * time.Millisecond,
-			RequiredAcks: kafka.RequireOne,
+			RequiredAcks: int(kafka.RequireOne),
 			Async:        false,
-		},
-	}
+			Dialer:       dialer,
+		}),
+	}, nil
 }
 
 func (k *KafkaSink) Publish(ctx context.Context, payload []byte) error {

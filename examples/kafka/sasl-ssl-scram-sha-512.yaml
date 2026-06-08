@@ -1,0 +1,36 @@
+# SASL/SCRAM-SHA-512 over TLS (common production setup).
+watch:
+  poll: 1s
+  paths:
+    - ./logs/app
+  patterns:
+    - "*.log"
+
+kafka:
+  brokers:
+    - kafka.example.com:9093
+  topic: logs
+  security:
+    protocol: SASL_SSL
+    tls:
+      ca_file: /etc/kafka/ca.crt
+    sasl:
+      mechanism: SCRAM-SHA-512
+      username: log-forwarder
+      password: ${KAFKA_PASSWORD}
+
+transform:
+  type: delimiter
+  delimiter: "\t"
+  columns:
+    - timestamp
+    - level
+    - message
+  on_error: wrap
+
+enrichers:
+  - type: host
+
+pipeline:
+  buffer_size: 1024
+  on_full: block

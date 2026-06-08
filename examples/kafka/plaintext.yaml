@@ -1,0 +1,30 @@
+# Unencrypted Kafka (local development only).
+watch:
+  poll: 1s
+  paths:
+    - ./logs/app
+  patterns:
+    - "*.log"
+
+kafka:
+  brokers:
+    - localhost:9092
+  topic: logs
+  security:
+    protocol: PLAINTEXT
+
+transform:
+  type: delimiter
+  delimiter: "\t"
+  columns:
+    - timestamp
+    - level
+    - message
+  on_error: wrap
+
+enrichers:
+  - type: host
+
+pipeline:
+  buffer_size: 1024
+  on_full: block

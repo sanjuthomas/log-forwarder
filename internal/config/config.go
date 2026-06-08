@@ -45,11 +45,6 @@ func (c WatchConfig) Entries() []WatchSource {
 	return entries
 }
 
-type KafkaConfig struct {
-	Brokers []string `yaml:"brokers"`
-	Topic   string   `yaml:"topic"`
-}
-
 type TransformConfig struct {
 	Type      string   `yaml:"type"`
 	Delimiter string   `yaml:"delimiter"`
@@ -138,11 +133,8 @@ func (c *Config) Validate() error {
 	if _, err := time.ParseDuration(c.Watch.Poll); err != nil {
 		return fmt.Errorf("watch.poll: %w", err)
 	}
-	if len(c.Kafka.Brokers) == 0 {
-		return fmt.Errorf("kafka.brokers must not be empty")
-	}
-	if c.Kafka.Topic == "" {
-		return fmt.Errorf("kafka.topic must not be empty")
+	if err := c.Kafka.Validate(); err != nil {
+		return err
 	}
 	if c.Transform.Type == "" {
 		return fmt.Errorf("transform.type must not be empty")

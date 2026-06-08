@@ -1,0 +1,32 @@
+# TLS with server authentication (verify broker certificate, no client cert).
+watch:
+  poll: 1s
+  paths:
+    - ./logs/app
+  patterns:
+    - "*.log"
+
+kafka:
+  brokers:
+    - kafka.example.com:9093
+  topic: logs
+  security:
+    protocol: SSL
+    tls:
+      ca_file: /etc/kafka/ca.crt
+
+transform:
+  type: delimiter
+  delimiter: "\t"
+  columns:
+    - timestamp
+    - level
+    - message
+  on_error: wrap
+
+enrichers:
+  - type: host
+
+pipeline:
+  buffer_size: 1024
+  on_full: block

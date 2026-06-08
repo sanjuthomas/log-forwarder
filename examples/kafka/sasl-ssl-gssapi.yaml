@@ -1,0 +1,41 @@
+# SASL/GSSAPI (Kerberos) over TLS.
+# Config validates at load time; Kerberos authentication is not yet implemented in the sink.
+watch:
+  poll: 1s
+  paths:
+    - ./logs/app
+  patterns:
+    - "*.log"
+
+kafka:
+  brokers:
+    - kafka.example.com:9093
+  topic: logs
+  security:
+    protocol: SASL_SSL
+    tls:
+      ca_file: /etc/kafka/ca.crt
+    sasl:
+      mechanism: GSSAPI
+      kerberos:
+        service_name: kafka
+        realm: EXAMPLE.COM
+        principal: log-forwarder/host.example.com@EXAMPLE.COM
+        keytab: /etc/kafka/log-forwarder.keytab
+        config_path: /etc/krb5.conf
+
+transform:
+  type: delimiter
+  delimiter: "\t"
+  columns:
+    - timestamp
+    - level
+    - message
+  on_error: wrap
+
+enrichers:
+  - type: host
+
+pipeline:
+  buffer_size: 1024
+  on_full: block

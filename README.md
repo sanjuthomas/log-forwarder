@@ -113,6 +113,32 @@ The watcher creates missing watch directories, detects new and rotated files (vi
 |-------|-------------|
 | `brokers` | List of broker addresses (e.g. `localhost:9092`) |
 | `topic` | Topic to publish JSON records to |
+| `security` | Optional TLS and SASL settings (see below) |
+
+Omit `security` for unencrypted local development (`PLAINTEXT`).
+
+```yaml
+kafka:
+  brokers:
+    - kafka.example.com:9093
+  topic: logs
+  security:
+    protocol: SASL_SSL
+    tls:
+      ca_file: /etc/kafka/ca.crt
+      cert_file: /etc/kafka/client.crt   # optional — mTLS
+      key_file: /etc/kafka/client.key
+    sasl:
+      mechanism: SCRAM-SHA-512
+      username: log-forwarder
+      password: secret
+```
+
+Supported protocols: `PLAINTEXT`, `SSL`, `SASL_PLAINTEXT`, `SASL_SSL`.
+
+Supported SASL mechanisms: `PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `OAUTHBEARER`. Kerberos (`GSSAPI`) config is accepted but not yet implemented in the sink.
+
+**Example configs for every security mode:** [`examples/kafka/`](examples/kafka/)
 
 ### `transform`
 
