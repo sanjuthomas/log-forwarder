@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 const (
@@ -21,9 +22,10 @@ const (
 )
 
 type KafkaConfig struct {
-	Brokers  []string              `yaml:"brokers"`
-	Topic    string                `yaml:"topic"`
-	Security *KafkaSecurityConfig  `yaml:"security,omitempty"`
+	Brokers         []string             `yaml:"brokers"`
+	Topic           string               `yaml:"topic"`
+	ConnectTimeout  string               `yaml:"connect_timeout"`
+	Security        *KafkaSecurityConfig `yaml:"security,omitempty"`
 }
 
 type KafkaSecurityConfig struct {
@@ -66,12 +68,28 @@ func (c KafkaConfig) SecurityProtocol() string {
 	return strings.ToUpper(c.Security.Protocol)
 }
 
+func (c KafkaConfig) ConnectTimeoutDuration() time.Duration {
+	if c.ConnectTimeout == "" {
+		return 10 * time.Second
+	}
+	d, err := time.ParseDuration(c.ConnectTimeout)
+	if err != nil {
+		return 10 * time.Second
+	}
+	return d
+}
+
 func (c KafkaConfig) Validate() error {
 	if len(c.Brokers) == 0 {
 		return fmt.Errorf("kafka.brokers must not be empty")
 	}
 	if c.Topic == "" {
 		return fmt.Errorf("kafka.topic must not be empty")
+	}
+	if c.ConnectTimeout != "" {
+		if _, err := time.ParseDuration(c.ConnectTimeout); err != nil {
+			return fmt.Errorf("kafka.connect_timeout: %w", err)
+		}
 	}
 
 	protocol := c.SecurityProtocol()

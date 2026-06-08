@@ -14,6 +14,7 @@ type Config struct {
 	Transform  TransformConfig  `yaml:"transform"`
 	Enrichers  []EnricherConfig `yaml:"enrichers"`
 	Pipeline   PipelineConfig   `yaml:"pipeline"`
+	Logging    LoggingConfig    `yaml:"logging"`
 }
 
 type WatchSource struct {
@@ -26,6 +27,11 @@ type WatchConfig struct {
 	Patterns []string      `yaml:"patterns"`
 	Sources  []WatchSource `yaml:"sources"`
 	Poll     string        `yaml:"poll"`
+	State    StateConfig   `yaml:"state"`
+}
+
+type StateConfig struct {
+	Path string `yaml:"path"`
 }
 
 // Entries returns the effective watch sources. When sources is set, it is used
@@ -109,7 +115,19 @@ func Default() *Config {
 			BufferSize: 1024,
 			OnFull:     "block",
 		},
+		Logging: LoggingConfig{
+			Level:          "info",
+			Format:         "text",
+			StatusInterval: "30s",
+		},
 	}
+}
+
+func (c *Config) StatePath() string {
+	if c.Watch.State.Path != "" {
+		return c.Watch.State.Path
+	}
+	return ".log-forwarder/watermarks.json"
 }
 
 func (c *Config) Validate() error {
@@ -155,7 +173,10 @@ func (c *Config) Validate() error {
 	default:
 		return fmt.Errorf("pipeline.on_full must be block or drop")
 	}
-	return nil
+	if err := c.validateLogging(); err != nil {
+		return err
+	}
+	return c.validateState()
 }
 
 func (c *Config) PollInterval() time.Duration {

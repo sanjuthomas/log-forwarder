@@ -17,7 +17,9 @@ import (
 	"github.com/sanjuthomas/log-forwarder/internal/config"
 	"github.com/sanjuthomas/log-forwarder/internal/enrich"
 	"github.com/sanjuthomas/log-forwarder/internal/pipeline"
+	"github.com/sanjuthomas/log-forwarder/internal/runtime"
 	"github.com/sanjuthomas/log-forwarder/internal/sink"
+	"github.com/sanjuthomas/log-forwarder/internal/state"
 	"github.com/sanjuthomas/log-forwarder/internal/transform"
 	"github.com/sanjuthomas/log-forwarder/internal/watcher"
 )
@@ -86,6 +88,13 @@ func main() {
 	defer stop()
 
 	lines := make(chan watcher.LineEvent, cfg.Pipeline.BufferSize)
+
+	watermarks, err := state.NewStore(cfg.StatePath())
+	if err != nil {
+		logger.Error("load watermarks", "path", cfg.StatePath(), "error", err)
+		os.Exit(1)
+	}
+
 	kafkaSink, err := sink.NewKafka(cfg.Kafka)
 	if err != nil {
 		logger.Error("create kafka sink", "error", err)
@@ -93,13 +102,30 @@ func main() {
 	}
 	defer kafkaSink.Close()
 
-	pipe, err := pipeline.New(cfg, kafkaSink, logger)
+	pingCtx, cancel := context.WithTimeout(context.Background(), cfg.Kafka.ConnectTimeoutDuration())
+	err = sink.CheckConnectivity(pingCtx, cfg.Kafka)
+	cancel()
+	if err != nil {
+		logger.Error(
+			"kafka unavailable at startup; refusing to start forwarder",
+			"brokers", cfg.Kafka.Brokers,
+			"topic", cfg.Kafka.Topic,
+			"error", err,
+		)
+		os.Exit(1)
+	}
+
+	stats := &runtime.Stats{}
+	pipe, err := pipeline.New(cfg, kafkaSink, logger, pipeline.Options{
+		Watermarks: watermarks,
+		Stats:      stats,
+	})
 	if err != nil {
 		logger.Error("create pipeline", "error", err)
 		os.Exit(1)
 	}
 
-	w := watcher.New(cfg, lines, logger)
+	w := watcher.New(cfg, lines, watermarks, logger)
 	errCh := make(chan error, 2)
 	go func() { errCh <- w.Run(ctx) }()
 	go func() { errCh <- pipe.Run(ctx, lines) }()

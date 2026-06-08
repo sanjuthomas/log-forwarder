@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/sanjuthomas/log-forwarder/internal/config"
 	"github.com/sanjuthomas/log-forwarder/internal/enrich"
+	"github.com/sanjuthomas/log-forwarder/internal/runtime"
 	"github.com/sanjuthomas/log-forwarder/internal/sink"
+	"github.com/sanjuthomas/log-forwarder/internal/state"
 	"github.com/sanjuthomas/log-forwarder/internal/transform"
 	"github.com/sanjuthomas/log-forwarder/internal/watcher"
 )
@@ -19,10 +22,17 @@ type Pipeline struct {
 	transformer transform.Transformer
 	enrichers   []enrich.Enricher
 	sink        sink.Sink
+	watermarks  *state.Store
+	stats       *runtime.Stats
 	logger      *slog.Logger
 }
 
-func New(cfg *config.Config, s sink.Sink, logger *slog.Logger) (*Pipeline, error) {
+type Options struct {
+	Watermarks *state.Store
+	Stats      *runtime.Stats
+}
+
+func New(cfg *config.Config, s sink.Sink, logger *slog.Logger, opts Options) (*Pipeline, error) {
 	t, err := transform.New(cfg.Transform)
 	if err != nil {
 		return nil, err
@@ -31,13 +41,23 @@ func New(cfg *config.Config, s sink.Sink, logger *slog.Logger) (*Pipeline, error
 	if err != nil {
 		return nil, err
 	}
+	stats := opts.Stats
+	if stats == nil {
+		stats = &runtime.Stats{}
+	}
 	return &Pipeline{
 		cfg:         cfg,
 		transformer: t,
 		enrichers:   chain,
 		sink:        s,
+		watermarks:  opts.Watermarks,
+		stats:       stats,
 		logger:      logger,
 	}, nil
+}
+
+func (p *Pipeline) Stats() *runtime.Stats {
+	return p.stats
 }
 
 func (p *Pipeline) Run(ctx context.Context, lines <-chan watcher.LineEvent) error {
@@ -50,10 +70,7 @@ func (p *Pipeline) Run(ctx context.Context, lines <-chan watcher.LineEvent) erro
 				return nil
 			}
 			if err := p.process(ctx, event); err != nil {
-				p.logger.Error("process line failed",
-					"path", event.Path,
-					"error", err,
-				)
+				return err
 			}
 		}
 	}
@@ -61,15 +78,16 @@ func (p *Pipeline) Run(ctx context.Context, lines <-chan watcher.LineEvent) erro
 
 func (p *Pipeline) process(ctx context.Context, event watcher.LineEvent) error {
 	record, err := p.transformer.Transform(event.Line)
+	skipPublish := false
 	if err != nil {
 		switch p.cfg.Transform.OnError {
 		case "skip":
 			p.logger.Debug("skipping line", "path", event.Path, "error", err)
-			return nil
+			skipPublish = true
 		case "wrap":
 			record = transform.Record{
-				"_raw":  string(event.Line),
-				"_path": event.Path,
+				"_raw":   string(event.Line),
+				"_path":  event.Path,
 				"_error": err.Error(),
 			}
 		default:
@@ -77,13 +95,48 @@ func (p *Pipeline) process(ctx context.Context, event watcher.LineEvent) error {
 		}
 	}
 
-	record["_path"] = event.Path
-	record = enrich.Apply(p.enrichers, record)
+	if !skipPublish {
+		record["_path"] = event.Path
+		record = enrich.Apply(p.enrichers, record)
 
-	payload, err := json.Marshal(record)
-	if err != nil {
-		return fmt.Errorf("marshal record: %w", err)
+		payload, err := json.Marshal(record)
+		if err != nil {
+			return fmt.Errorf("marshal record: %w", err)
+		}
+
+		if err := p.publishWithRetry(ctx, payload); err != nil {
+			return err
+		}
+		p.stats.LinesPublished.Add(1)
 	}
 
-	return p.sink.Publish(ctx, payload)
+	if p.watermarks != nil {
+		if err := p.watermarks.Set(event.Path, event.Offset, event.Inode); err != nil {
+			return fmt.Errorf("update watermark: %w", err)
+		}
+	}
+	return nil
+}
+
+func (p *Pipeline) publishWithRetry(ctx context.Context, payload []byte) error {
+	backoff := time.Second
+	for {
+		err := p.sink.Publish(ctx, payload)
+		if err == nil {
+			return nil
+		}
+
+		p.stats.PublishFailures.Add(1)
+		p.logger.Warn("kafka publish failed, retrying", "error", err, "retry_in", backoff)
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(backoff):
+		}
+
+		if backoff < 30*time.Second {
+			backoff *= 2
+		}
+	}
 }

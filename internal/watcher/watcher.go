@@ -15,20 +15,24 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/sanjuthomas/log-forwarder/internal/config"
+	"github.com/sanjuthomas/log-forwarder/internal/state"
 )
 
 // LineEvent carries a single log line and its source file path.
 type LineEvent struct {
-	Path string
-	Line []byte
+	Path   string
+	Line   []byte
+	Offset int64
+	Inode  uint64
 }
 
 // Watcher tails log files matching configured paths and patterns.
 type Watcher struct {
-	cfg    config.WatchConfig
-	poll   time.Duration
-	lines  chan<- LineEvent
-	logger *slog.Logger
+	cfg        config.WatchConfig
+	poll       time.Duration
+	lines      chan<- LineEvent
+	watermarks *state.Store
+	logger     *slog.Logger
 
 	mu    sync.Mutex
 	files map[string]*fileState
@@ -42,14 +46,21 @@ type fileState struct {
 	inode  uint64
 }
 
-func New(cfg *config.Config, lines chan<- LineEvent, logger *slog.Logger) *Watcher {
+func New(cfg *config.Config, lines chan<- LineEvent, watermarks *state.Store, logger *slog.Logger) *Watcher {
 	return &Watcher{
-		cfg:    cfg.Watch,
-		poll:   cfg.PollInterval(),
-		lines:  lines,
-		logger: logger,
-		files:  make(map[string]*fileState),
+		cfg:        cfg.Watch,
+		poll:       cfg.PollInterval(),
+		lines:      lines,
+		watermarks: watermarks,
+		logger:     logger,
+		files:      make(map[string]*fileState),
 	}
+}
+
+func (w *Watcher) FileCount() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return len(w.files)
 }
 
 func (w *Watcher) Run(ctx context.Context) error {
@@ -71,6 +82,8 @@ func (w *Watcher) Run(ctx context.Context) error {
 			return fmt.Errorf("watch %q: %w", dir, err)
 		}
 	}
+
+	w.logger.Info("watching log directories", "paths", watchPaths)
 
 	if err := w.scan(); err != nil {
 		return err
@@ -170,7 +183,6 @@ func (w *Watcher) tailFile(path string) error {
 
 	w.mu.Lock()
 	state, exists := w.files[path]
-	rotated := exists && state.inode != inode
 	if exists && state.inode == inode {
 		w.mu.Unlock()
 		return w.readNewLines(state)
@@ -186,14 +198,16 @@ func (w *Watcher) tailFile(path string) error {
 		return err
 	}
 
-	seekWhence := io.SeekEnd
-	if rotated {
-		seekWhence = io.SeekStart
-	}
-	offset, err := f.Seek(0, seekWhence)
-	if err != nil {
+	offset, resumed := w.initialOffset(path, inode)
+	if _, err := f.Seek(offset, io.SeekStart); err != nil {
 		_ = f.Close()
 		return err
+	}
+
+	if resumed {
+		w.logger.Info("resuming file from watermark", "path", path, "offset", offset)
+	} else {
+		w.logger.Info("tailing file from beginning", "path", path)
 	}
 
 	state = &fileState{
@@ -211,15 +225,31 @@ func (w *Watcher) tailFile(path string) error {
 	return w.readNewLines(state)
 }
 
+func (w *Watcher) initialOffset(path string, inode uint64) (int64, bool) {
+	if w.watermarks == nil {
+		return 0, false
+	}
+	entry, ok := w.watermarks.Get(path)
+	if !ok || entry.Inode != inode {
+		return 0, false
+	}
+	return entry.Offset, true
+}
+
 func (w *Watcher) readNewLines(state *fileState) error {
 	for {
 		line, err := state.reader.ReadBytes('\n')
 		if len(line) > 0 {
 			trimmed := strings.TrimRight(string(line), "\r\n")
-			if trimmed != "" {
-				w.lines <- LineEvent{Path: state.path, Line: []byte(trimmed)}
-			}
 			state.offset += int64(len(line))
+			if trimmed != "" {
+				w.lines <- LineEvent{
+					Path:   state.path,
+					Line:   []byte(trimmed),
+					Offset: state.offset,
+					Inode:  state.inode,
+				}
+			}
 		}
 		if err != nil {
 			if err == io.EOF {

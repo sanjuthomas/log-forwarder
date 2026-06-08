@@ -1,5 +1,7 @@
 watch:
   poll: 1s
+  state:
+    path: .log-forwarder/watermarks.json
   sources:
     - path: ./logs/app
       patterns:
@@ -45,3 +47,9 @@ enrichers:
 pipeline:
   buffer_size: 1024
   on_full: block
+
+logging:
+  level: info
+  format: text
+  file: /var/log/log-forwarder/forwarder.log
+  status_interval: 30s
