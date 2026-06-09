@@ -40,3 +40,9 @@ enrichers:
 pipeline:
   buffer_size: 1024
   on_full: block
+
+metrics:
+  enabled: true
+  host: 127.0.0.1
+  port: 10003
+  path: /metrics
