@@ -2,8 +2,32 @@
 
 A lightweight Go service that tails log files, transforms lines into structured JSON, enriches records with metadata, and publishes them to Kafka.
 
-```
-log files  →  watcher  →  transform  →  enrich  →  Kafka
+```mermaid
+flowchart LR
+    subgraph local["Local disk"]
+        logs["Log files\n(watch paths)"]
+    end
+
+    subgraph host["Forwarder host"]
+        watcher["Watcher\ntail · rotate"]
+        transform["Transform\ndelimiter / regex"]
+        enrich["Enrich\nhost · static · …"]
+        sink["Kafka sink\nJSON records"]
+        watcher --> transform --> enrich --> sink
+    end
+
+    subgraph network["Network"]
+        conn["Kafka protocol\nPLAINTEXT · SSL · SASL"]
+    end
+
+    subgraph cluster["Kafka cluster"]
+        brokers["Brokers"]
+        topic["Topic"]
+        brokers --> topic
+    end
+
+    logs -->|"read new lines"| watcher
+    sink -->|"publish"| conn --> brokers
 ```
 
 ## Requirements
