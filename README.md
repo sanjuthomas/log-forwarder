@@ -2,7 +2,7 @@
 
 A lightweight Go service that tails log files, parses and transforms lines into structured JSON, enriches records with metadata, and publishes them through a **pluggable sink** to the destination you configure.
 
-**User guide (operators):** [docs/wiki/Home.md](docs/wiki/Home.md) — task-oriented docs for install, config, sinks, Spring Boot, and watermarks. Source for the [GitHub Wiki](https://github.com/sanjuthomas/log-forwarder/wiki) (see [docs/wiki/README.md](docs/wiki/README.md) to publish).
+**User guide:** For install, configuration, sinks, Spring Boot logs, and watermarks, see the [GitHub Wiki](https://github.com/sanjuthomas/log-forwarder/wiki).
 
 ```mermaid
 flowchart LR
