@@ -97,6 +97,7 @@ Controls which log files are tailed.
 | `sources` | Per-directory watch entries, each with its own `patterns` |
 | `paths` | Directories to watch when all use the same `patterns` |
 | `patterns` | Glob patterns applied to every path in `paths` |
+| `state.path` | Path to the watermark file (default `.log-forwarder/watermarks.json`) |
 
 Use **`sources`** when patterns differ per directory, or **`paths`** + **`patterns`** when every directory shares the same globs.
 
@@ -130,7 +131,61 @@ watch:
     - "*.out"
 ```
 
-The watcher creates missing watch directories, detects new and rotated files (via inode), and tails only **new** lines written after the forwarder starts (or after a rotation).
+The watcher creates missing watch directories, detects new and rotated files (via inode), and reads only lines that have not yet been forwarded.
+
+#### Watermarks
+
+Watermarks persist how far the forwarder has read in each tailed file so a **restart does not re-publish** lines that were already shipped to Kafka.
+
+**Default location:** `.log-forwarder/watermarks.json` in the forwarder's **current working directory** (the directory you start the process from). Relative paths in config are resolved the same way.
+
+If you run without `-config`, the default is still `.log-forwarder/watermarks.json`. The directory is created automatically on first write.
+
+**Change the location** with `watch.state.path`:
+
+```yaml
+watch:
+  poll: 1s
+  state:
+    path: /var/lib/log-forwarder/watermarks.json
+  sources:
+    - path: ./logs/app
+      patterns:
+        - "*.log"
+```
+
+Use an absolute path in production so the file location does not depend on where the service is started from. The forwarder logs the resolved path at startup (`state_path` in the `log forwarder started` message).
+
+**File format** — JSON mapping each tailed file path to a byte offset and inode:
+
+```json
+{
+  "files": {
+    "/var/log/billing/application.log": {
+      "offset": 1048576,
+      "inode": 883241
+    }
+  }
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `offset` | Number of bytes read from the start of the file (including newline characters) |
+| `inode` | OS inode of the file when the offset was recorded |
+
+**How it works:**
+
+1. **First run** — no watermark file exists (or no entry for a file). The forwarder tails from the **beginning** of the file.
+2. **After each record is published** — the watermark for that source file is updated to the offset of the last processed line (or the last line of a multiline record).
+3. **Restart** — if the file's inode matches the stored value, tailing **resumes from `offset`**. The log line `resuming file from watermark` indicates this.
+4. **Log rotation** — if the path is reused but the **inode changed** (typical after `logrotate`), the stored offset is ignored and the forwarder tails the new file from the **beginning**. The log line `tailing file from beginning` indicates this.
+
+**Operational notes:**
+
+- **Delete the watermark file** (or a single entry) to force a full re-read of matching files. Those lines will be published to Kafka again.
+- **Do not place the watermark file inside a watched directory** — config validation rejects paths that would be tailed as log input. Keep it outside `watch.paths` / `watch.sources`, similar to `logging.file`.
+- Writes are atomic (write to a `.tmp` file, then rename) to reduce the risk of a corrupted state file on crash.
 
 ### `kafka`
 
