@@ -314,6 +314,15 @@ func TestE2E_MetricsHealthAndCounters(t *testing.T) {
 		t.Fatalf("/health status = %d", resp.StatusCode)
 	}
 
+	resp, err = http.Get(base + "/ready")
+	if err != nil {
+		t.Fatalf("GET /ready error = %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("/ready status = %d", resp.StatusCode)
+	}
+
 	resp, err = http.Get(base + "/metrics")
 	if err != nil {
 		t.Fatalf("GET /metrics error = %v", err)

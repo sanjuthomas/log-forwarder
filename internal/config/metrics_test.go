@@ -67,6 +67,33 @@ func TestValidateMetricsEnabledRejectsRootPath(t *testing.T) {
 	}
 }
 
+func TestValidateMetricsReadinessConfig(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.Metrics.Enabled = true
+	cfg.Metrics.Readiness.Path = "/metrics"
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error when readiness path equals metrics path")
+	}
+
+	cfg = Default()
+	cfg.Metrics.Enabled = true
+	cfg.Metrics.Readiness.BufferThreshold = 1.5
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for buffer_threshold > 1")
+	}
+
+	cfg = Default()
+	cfg.Metrics.Enabled = true
+	if cfg.Metrics.Readiness.ReadyPath() != "/ready" {
+		t.Fatalf("ReadyPath() = %q, want /ready", cfg.Metrics.Readiness.ReadyPath())
+	}
+	if !cfg.Metrics.Readiness.SinkCheckEnabled() {
+		t.Fatal("expected sink_check default true")
+	}
+}
+
 func TestLoadConfigWithMetricsSection(t *testing.T) {
 	t.Parallel()
 

@@ -64,7 +64,7 @@ func main() {
 	lines := make(chan watcher.LineEvent, cfg.Pipeline.BufferSize)
 
 	var forwarderWatcher *watcher.Watcher
-	collector, shutdownMetrics, err := metrics.New(cfg.Metrics, metrics.Snapshot{
+	snapshot := metrics.Snapshot{
 		FilesWatched: func() int64 {
 			if forwarderWatcher == nil {
 				return 0
@@ -75,7 +75,9 @@ func main() {
 			return int64(len(lines))
 		},
 		BufferCapacity: int64(cfg.Pipeline.BufferSize),
-	})
+	}
+	readiness := buildReadiness(cfg, recordSink, snapshot)
+	collector, shutdownMetrics, err := metrics.New(cfg.Metrics, snapshot, readiness)
 	if err != nil {
 		logger.Error("create metrics collector", "error", err)
 		os.Exit(1)
@@ -121,6 +123,7 @@ func main() {
 		startAttrs = append(startAttrs,
 			"metrics_addr", cfg.Metrics.Addr(),
 			"metrics_path", cfg.Metrics.MetricsPath(),
+			"readiness_path", cfg.Metrics.Readiness.ReadyPath(),
 		)
 	}
 	logger.Info("log forwarder started", startAttrs...)
@@ -143,6 +146,24 @@ func checkSinkAtStartup(s sink.Sink, cfg *config.Config) error {
 	pingCtx, cancel := context.WithTimeout(context.Background(), cfg.SinkConnectTimeout())
 	defer cancel()
 	return checker.Check(pingCtx)
+}
+
+func buildReadiness(cfg *config.Config, recordSink sink.Sink, snapshot metrics.Snapshot) *metrics.Readiness {
+	if !cfg.Metrics.Enabled {
+		return nil
+	}
+
+	readiness := &metrics.Readiness{
+		Snapshot:         snapshot,
+		BufferThreshold:  cfg.Metrics.Readiness.BufferThresholdOrDefault(),
+		RequireFiles:     cfg.Metrics.Readiness.RequireFiles,
+		SinkCheckEnabled: cfg.Metrics.Readiness.SinkCheckEnabled(),
+		SinkCheckTimeout: cfg.Metrics.Readiness.SinkCheckTimeoutDuration(cfg.SinkConnectTimeout()),
+	}
+	if checker, ok := recordSink.(sink.Checker); ok {
+		readiness.CheckSink = checker.Check
+	}
+	return readiness
 }
 
 func logStatus(ctx context.Context, logger *slog.Logger, w *watcher.Watcher, interval time.Duration) {

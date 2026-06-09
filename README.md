@@ -898,9 +898,14 @@ scrape_configs:
 
 If you changed `metrics.path` in config, use that value for `metrics_path`.
 
-### 3. Health checks
+### 3. Health and readiness checks
 
-Use `/health` for liveness probes. The endpoint confirms the management server is running; it does not verify sink connectivity on every request (the sink is checked at startup when it implements `sink.Checker`).
+Use `/health` for **liveness** probes. It confirms the management server is running only; it does not verify sink connectivity after startup.
+
+Use `/ready` for **readiness** probes when `metrics.enabled: true`. It returns `503` when:
+- the sink fails its connectivity check (when the sink implements `sink.Checker` and `metrics.readiness.sink_check` is true)
+- `pipeline buffer depth / capacity` exceeds `metrics.readiness.buffer_threshold` (default `0.8`)
+- `metrics.readiness.require_files: true` and no log files are being tailed
 
 **Kubernetes example:**
 
@@ -911,9 +916,30 @@ livenessProbe:
     port: 8080
   initialDelaySeconds: 5
   periodSeconds: 30
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 10
 ```
 
-Pair this with log monitoring or alerts on `log_forwarder_kafka_publish_failures` to detect downstream sink issues after startup.
+Optional readiness tuning:
+
+```yaml
+metrics:
+  enabled: true
+  host: 0.0.0.0
+  port: 8080
+  readiness:
+    path: /ready
+    buffer_threshold: 0.8
+    sink_check: true
+    require_files: false
+    sink_check_timeout: 5s
+```
+
+Pair readiness with Prometheus alerts on `log_forwarder_kafka_publish_failures` and `log_forwarder_pipeline_buffer_depth` for sustained sink or backlog issues.
 
 ### 4. Log-based status
 

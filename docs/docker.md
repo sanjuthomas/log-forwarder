@@ -75,6 +75,12 @@ containers:
         port: metrics
       initialDelaySeconds: 5
       periodSeconds: 30
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: metrics
+      initialDelaySeconds: 5
+      periodSeconds: 10
 ```
 
 Share an `emptyDir` (or hostPath) between app and sidecar for logs. Point `sink.kafka.brokers` or `sink.http_noauth.url` at cluster-accessible destinations.
