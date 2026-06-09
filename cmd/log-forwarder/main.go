@@ -11,8 +11,8 @@ import (
 
 	"github.com/sanjuthomas/log-forwarder/internal/config"
 	applogging "github.com/sanjuthomas/log-forwarder/internal/logging"
+	"github.com/sanjuthomas/log-forwarder/internal/metrics"
 	"github.com/sanjuthomas/log-forwarder/internal/pipeline"
-	"github.com/sanjuthomas/log-forwarder/internal/runtime"
 	"github.com/sanjuthomas/log-forwarder/internal/sink"
 	"github.com/sanjuthomas/log-forwarder/internal/state"
 	"github.com/sanjuthomas/log-forwarder/internal/watcher"
@@ -70,32 +70,68 @@ func main() {
 	defer stop()
 
 	lines := make(chan watcher.LineEvent, cfg.Pipeline.BufferSize)
-	stats := &runtime.Stats{}
+
+	var forwarderWatcher *watcher.Watcher
+	collector, shutdownMetrics, err := metrics.New(cfg.Metrics, metrics.Snapshot{
+		FilesWatched: func() int64 {
+			if forwarderWatcher == nil {
+				return 0
+			}
+			return int64(forwarderWatcher.FileCount())
+		},
+		BufferDepth: func() int64 {
+			return int64(len(lines))
+		},
+		BufferCapacity: int64(cfg.Pipeline.BufferSize),
+	})
+	if err != nil {
+		logger.Error("create metrics collector", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		if err := shutdownMetrics(shutdownCtx); err != nil {
+			logger.Error("shutdown metrics", "error", err)
+		}
+	}()
+	if err := collector.Start(logger); err != nil {
+		logger.Error("start metrics server", "error", err)
+		os.Exit(1)
+	}
 
 	pipe, err := pipeline.New(cfg, kafkaSink, logger, pipeline.Options{
 		Watermarks: watermarks,
-		Stats:      stats,
+		Metrics:    collector,
 	})
 	if err != nil {
 		logger.Error("create pipeline", "error", err)
 		os.Exit(1)
 	}
 
-	w := watcher.New(cfg, lines, watermarks, logger)
+	forwarderWatcher = watcher.New(cfg, lines, watermarks, collector, logger)
 
 	errCh := make(chan error, 2)
-	go func() { errCh <- w.Run(ctx) }()
+	go func() { errCh <- forwarderWatcher.Run(ctx) }()
 	go func() { errCh <- pipe.Run(ctx, lines) }()
 
 	if interval := cfg.Logging.StatusIntervalDuration(); interval > 0 {
-		go logStatus(ctx, logger, w, stats, interval)
+		go logStatus(ctx, logger, forwarderWatcher, interval)
 	}
 
-	logger.Info("log forwarder started",
+	startAttrs := []any{
 		"sources", cfg.Watch.Entries(),
 		"topic", cfg.Kafka.Topic,
 		"state_path", cfg.StatePath(),
-	)
+		"metrics_enabled", cfg.Metrics.Enabled,
+	}
+	if cfg.Metrics.Enabled {
+		startAttrs = append(startAttrs,
+			"metrics_addr", cfg.Metrics.Addr(),
+			"metrics_path", cfg.Metrics.MetricsPath(),
+		)
+	}
+	logger.Info("log forwarder started", startAttrs...)
 
 	if err := <-errCh; err != nil && err != context.Canceled {
 		logger.Error("forwarder stopped", "error", err)
@@ -103,13 +139,10 @@ func main() {
 	}
 
 	close(lines)
-	logger.Info("log forwarder stopped",
-		"lines_published", stats.LinesPublished.Load(),
-		"publish_failures", stats.PublishFailures.Load(),
-	)
+	logger.Info("log forwarder stopped")
 }
 
-func logStatus(ctx context.Context, logger *slog.Logger, w *watcher.Watcher, stats *runtime.Stats, interval time.Duration) {
+func logStatus(ctx context.Context, logger *slog.Logger, w *watcher.Watcher, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -118,11 +151,7 @@ func logStatus(ctx context.Context, logger *slog.Logger, w *watcher.Watcher, sta
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			logger.Info("forwarder status",
-				"watched_files", w.FileCount(),
-				"lines_published", stats.LinesPublished.Load(),
-				"publish_failures", stats.PublishFailures.Load(),
-			)
+			logger.Info("forwarder status", "watched_files", w.FileCount())
 		}
 	}
 }

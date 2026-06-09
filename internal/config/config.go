@@ -15,6 +15,7 @@ type Config struct {
 	Enrichers  []EnricherConfig `yaml:"enrichers"`
 	Pipeline   PipelineConfig   `yaml:"pipeline"`
 	Logging    LoggingConfig    `yaml:"logging"`
+	Metrics    MetricsConfig    `yaml:"metrics"`
 }
 
 type WatchSource struct {
@@ -174,6 +175,9 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("pipeline.on_full must be block or drop")
 	}
 	if err := c.validateLogging(); err != nil {
+		return err
+	}
+	if err := c.validateMetrics(); err != nil {
 		return err
 	}
 	return c.validateState()

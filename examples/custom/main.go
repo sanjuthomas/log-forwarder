@@ -17,7 +17,6 @@ import (
 	"github.com/sanjuthomas/log-forwarder/internal/config"
 	"github.com/sanjuthomas/log-forwarder/internal/enrich"
 	"github.com/sanjuthomas/log-forwarder/internal/pipeline"
-	"github.com/sanjuthomas/log-forwarder/internal/runtime"
 	"github.com/sanjuthomas/log-forwarder/internal/sink"
 	"github.com/sanjuthomas/log-forwarder/internal/state"
 	"github.com/sanjuthomas/log-forwarder/internal/transform"
@@ -115,17 +114,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	stats := &runtime.Stats{}
 	pipe, err := pipeline.New(cfg, kafkaSink, logger, pipeline.Options{
 		Watermarks: watermarks,
-		Stats:      stats,
 	})
 	if err != nil {
 		logger.Error("create pipeline", "error", err)
 		os.Exit(1)
 	}
 
-	w := watcher.New(cfg, lines, watermarks, logger)
+	w := watcher.New(cfg, lines, watermarks, nil, logger)
 	errCh := make(chan error, 2)
 	go func() { errCh <- w.Run(ctx) }()
 	go func() { errCh <- pipe.Run(ctx, lines) }()

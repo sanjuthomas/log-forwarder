@@ -15,6 +15,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/sanjuthomas/log-forwarder/internal/config"
+	"github.com/sanjuthomas/log-forwarder/internal/metrics"
 	"github.com/sanjuthomas/log-forwarder/internal/state"
 )
 
@@ -32,6 +33,7 @@ type Watcher struct {
 	poll       time.Duration
 	lines      chan<- LineEvent
 	watermarks *state.Store
+	metrics    *metrics.Collector
 	logger     *slog.Logger
 
 	mu    sync.Mutex
@@ -46,12 +48,13 @@ type fileState struct {
 	inode  uint64
 }
 
-func New(cfg *config.Config, lines chan<- LineEvent, watermarks *state.Store, logger *slog.Logger) *Watcher {
+func New(cfg *config.Config, lines chan<- LineEvent, watermarks *state.Store, collector *metrics.Collector, logger *slog.Logger) *Watcher {
 	return &Watcher{
 		cfg:        cfg.Watch,
 		poll:       cfg.PollInterval(),
 		lines:      lines,
 		watermarks: watermarks,
+		metrics:    collector,
 		logger:     logger,
 		files:      make(map[string]*fileState),
 	}
@@ -243,6 +246,7 @@ func (w *Watcher) readNewLines(state *fileState) error {
 			trimmed := strings.TrimRight(string(line), "\r\n")
 			state.offset += int64(len(line))
 			if trimmed != "" {
+				w.metrics.RecordLineRead(context.Background(), 1)
 				w.lines <- LineEvent{
 					Path:   state.path,
 					Line:   []byte(trimmed),

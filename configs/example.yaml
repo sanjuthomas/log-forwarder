@@ -53,3 +53,9 @@ logging:
   format: text
   file: /var/log/log-forwarder/forwarder.log
   status_interval: 30s
+
+metrics:
+  enabled: true
+  host: 127.0.0.1
+  port: 8080
+  path: /metrics

@@ -9,7 +9,7 @@ import (
 
 	"github.com/sanjuthomas/log-forwarder/internal/config"
 	"github.com/sanjuthomas/log-forwarder/internal/enrich"
-	"github.com/sanjuthomas/log-forwarder/internal/runtime"
+	"github.com/sanjuthomas/log-forwarder/internal/metrics"
 	"github.com/sanjuthomas/log-forwarder/internal/sink"
 	"github.com/sanjuthomas/log-forwarder/internal/state"
 	"github.com/sanjuthomas/log-forwarder/internal/transform"
@@ -23,13 +23,13 @@ type Pipeline struct {
 	enrichers   []enrich.Enricher
 	sink        sink.Sink
 	watermarks  *state.Store
-	stats       *runtime.Stats
+	metrics     *metrics.Collector
 	logger      *slog.Logger
 }
 
 type Options struct {
 	Watermarks *state.Store
-	Stats      *runtime.Stats
+	Metrics    *metrics.Collector
 }
 
 func New(cfg *config.Config, s sink.Sink, logger *slog.Logger, opts Options) (*Pipeline, error) {
@@ -41,23 +41,15 @@ func New(cfg *config.Config, s sink.Sink, logger *slog.Logger, opts Options) (*P
 	if err != nil {
 		return nil, err
 	}
-	stats := opts.Stats
-	if stats == nil {
-		stats = &runtime.Stats{}
-	}
 	return &Pipeline{
 		cfg:         cfg,
 		transformer: t,
 		enrichers:   chain,
 		sink:        s,
 		watermarks:  opts.Watermarks,
-		stats:       stats,
+		metrics:     opts.Metrics,
 		logger:      logger,
 	}, nil
-}
-
-func (p *Pipeline) Stats() *runtime.Stats {
-	return p.stats
 }
 
 func (p *Pipeline) Run(ctx context.Context, lines <-chan watcher.LineEvent) error {
@@ -80,10 +72,12 @@ func (p *Pipeline) process(ctx context.Context, event watcher.LineEvent) error {
 	record, err := p.transformer.Transform(event.Line)
 	skipPublish := false
 	if err != nil {
+		p.metrics.RecordTransformError(ctx)
 		switch p.cfg.Transform.OnError {
 		case "skip":
 			p.logger.Debug("skipping line", "path", event.Path, "error", err)
 			skipPublish = true
+			p.metrics.RecordLineSkipped(ctx)
 		case "wrap":
 			record = transform.Record{
 				"_raw":   string(event.Line),
@@ -107,7 +101,7 @@ func (p *Pipeline) process(ctx context.Context, event watcher.LineEvent) error {
 		if err := p.publishWithRetry(ctx, payload); err != nil {
 			return err
 		}
-		p.stats.LinesPublished.Add(1)
+		p.metrics.RecordLinePublished(ctx)
 	}
 
 	if p.watermarks != nil {
@@ -121,18 +115,21 @@ func (p *Pipeline) process(ctx context.Context, event watcher.LineEvent) error {
 func (p *Pipeline) publishWithRetry(ctx context.Context, payload []byte) error {
 	backoff := time.Second
 	for {
+		start := time.Now()
 		err := p.sink.Publish(ctx, payload)
+		p.metrics.RecordKafkaPublishDuration(ctx, time.Since(start))
 		if err == nil {
 			return nil
 		}
 
-		p.stats.PublishFailures.Add(1)
+		p.metrics.RecordPublishFailure(ctx)
 		p.logger.Warn("kafka publish failed, retrying", "error", err, "retry_in", backoff)
 
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(backoff):
+			p.metrics.RecordPublishRetry(ctx)
 		}
 
 		if backoff < 30*time.Second {
