@@ -148,7 +148,9 @@ The watcher creates missing watch directories, detects new and rotated files (vi
 
 #### Watermarks
 
-Watermarks persist how far the forwarder has read in each tailed file so a **restart does not re-publish** lines that were already shipped to the sink.
+Watermarks track **how far this forwarder process has read** in each tailed **source file**. They belong to the **process** (via `watch.state.path`), not to a particular sink — the watermark file stores only file path, byte `offset`, and `inode`. There is no sink type or destination in the watermark.
+
+That means a **restart does not re-publish** lines that were already read and successfully published, even if you change `sink.type` or sink settings before restarting (for example switching from Kafka to file). The forwarder resumes tailing from the saved offset; only **new** lines after that point go to the new sink. Previously shipped lines are **not** automatically re-sent to the new destination.
 
 **Default location:** `.log-forwarder/watermarks.json` in the forwarder's **current working directory** (the directory you start the process from). Relative paths in config are resolved the same way.
 
@@ -196,13 +198,17 @@ Use an absolute path in production so the file location does not depend on where
 
 **Operational notes:**
 
-- **Delete the watermark file** (or a single entry) to force a full re-read of matching files. Those lines will be published to the sink again.
+- **Re-read from the beginning of a file** — remove that file's entry from the `files` object in the watermark JSON (or delete the entire watermark file to reset all watched files). On the next start the forwarder tails from offset `0` and publishes those lines again to the **current** sink.
+- **Change sink and restart** — the existing watermark is **respected**; tailing continues where it left off. To backfill the new sink with older log content, you must clear the relevant watermark entry(ies) as above.
+- **Different sinks for the same log files** — run **separate forwarder processes**, each with its own config and `watch.state.path`. One process, one sink; one watermark file per process.
 - **Do not place the watermark file inside a watched directory** — config validation rejects paths that would be tailed as log input. Keep it outside `watch.paths` / `watch.sources`, similar to `logging.file`.
 - Writes are atomic (write to a `.tmp` file, then rename) to reduce the risk of a corrupted state file on crash.
 
 ### `sink`
 
-Select where JSON records are written. Built-in types: `kafka` (default), `file`, and `http-noauth`. Register custom sinks (for example BigQuery streaming or HTTP with OAuth2) in a custom binary — see [Custom sink](#custom-sink).
+Each forwarder **process** configures exactly **one** sink. There is no multi-sink or fan-out in a single config — `sink.type` selects a single implementation (`kafka`, `file`, `http-noauth`, or a custom registered type), and every published record goes to that destination only.
+
+Built-in types: `kafka` (default), `file`, and `http-noauth`. Register custom sinks (for example BigQuery streaming or HTTP with OAuth2) in a custom binary — see [Custom sink](#custom-sink). Watermark behavior is described [above](#watermarks); it is tied to the process and source files, not to which sink type is active.
 
 | Field | Description |
 |-------|-------------|
