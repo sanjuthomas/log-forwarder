@@ -25,6 +25,7 @@ var registry = map[string]Factory{}
 // Register adds a custom sink factory. Call from init() in user code.
 func Register(name string, factory Factory) {
 	registry[name] = factory
+	config.RegisterSinkType(name)
 }
 
 func New(cfg config.SinkConfig) (Sink, error) {

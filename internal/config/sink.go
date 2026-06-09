@@ -48,6 +48,9 @@ func (c *Config) validateSink() error {
 	if sinkType == "" {
 		sinkType = "kafka"
 	}
+	if !knownSinkType(sinkType) {
+		return unknownTypeError("sink.type", sinkType, sinkTypes)
+	}
 
 	switch sinkType {
 	case "kafka":
@@ -66,6 +69,7 @@ func (c *Config) validateSink() error {
 		}
 		return c.Sink.HTTPNoauth.Validate()
 	default:
+		// Custom sink registered via sink.Register; field validation deferred to factory.
 		return nil
 	}
 }

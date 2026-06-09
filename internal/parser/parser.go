@@ -28,6 +28,7 @@ var registry = map[string]Factory{}
 // Register adds a custom parser factory. Call from init() in user code.
 func Register(name string, factory Factory) {
 	registry[name] = factory
+	config.RegisterParserType(name)
 }
 
 func New(cfg config.ParserConfig) (Parser, error) {
