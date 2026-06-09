@@ -1041,7 +1041,7 @@ Round-trip test: forwarder → Kafka topic → consumer verifies JSON.
 
 Uses `docker-compose.kafka.yaml` (Apache Kafka KRaft + topic init + forwarder). Requires Docker Compose v2 with `compose up --wait`.
 
-GitHub Actions: run the **Kafka smoke** workflow manually from the Actions tab.
+GitHub Actions: **Kafka smoke** runs on every pull request to `main` (required check before merge).
 
 See [docs/docker.md](docs/docker.md) for volume mounts, Kubernetes sidecar notes, and maintainer publish steps.
 

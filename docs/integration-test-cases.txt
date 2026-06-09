@@ -69,7 +69,7 @@ CFG-1 TestIntegration_ExampleConfigsValidate
                                              All configs/*.yaml and examples/kafka/*.yaml
                                              load and pass Validate() without error.
 
-KAFKA-1 scripts/kafka-smoke.sh (manual / CI workflow_dispatch)
+KAFKA-1 scripts/kafka-smoke.sh (CI on every PR to main; also workflow_dispatch)
                                              docker-compose.kafka.yaml round-trip: forwarder
                                              publishes JSON to topic logs; consumer asserts content.
 

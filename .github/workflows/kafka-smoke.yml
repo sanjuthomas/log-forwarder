@@ -1,7 +1,15 @@
 name: Kafka smoke
 
 on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: kafka-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   kafka-smoke:
