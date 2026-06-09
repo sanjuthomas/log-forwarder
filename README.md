@@ -726,4 +726,4 @@ internal/
 
 ## License
 
-See repository license file if present.
+This project is licensed under the [MIT License](LICENSE).
