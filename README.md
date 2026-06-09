@@ -1027,8 +1027,21 @@ Container images for sidecar and standalone deployments are published to [Docker
 
 ```bash
 docker compose up --build          # local smoke test
+docker compose -f docker-compose.kafka.yaml up --build   # Kafka round-trip (see below)
 docker pull sanjuthomas/log-forwarder:latest
 ```
+
+### Kafka smoke test
+
+Round-trip test: forwarder → Kafka topic → consumer verifies JSON.
+
+```bash
+./scripts/kafka-smoke.sh
+```
+
+Uses `docker-compose.kafka.yaml` (Apache Kafka KRaft + topic init + forwarder). Requires Docker Compose v2 with `compose up --wait`.
+
+GitHub Actions: run the **Kafka smoke** workflow manually from the Actions tab.
 
 See [docs/docker.md](docs/docker.md) for volume mounts, Kubernetes sidecar notes, and maintainer publish steps.
 
@@ -1068,7 +1081,9 @@ cmd/log-forwarder/     Main entrypoint (built-in transformers/enrichers only)
 configs/               Example and local config files
 docker/                Sample log data for docker compose
 Dockerfile             Multi-stage image (Alpine runtime, non-root forwarder)
-docker-compose.yaml    Local container smoke test
+docker-compose.yaml    Local container smoke test (file sink)
+docker-compose.kafka.yaml  Kafka round-trip smoke test stack
+scripts/kafka-smoke.sh     Automated Kafka publish/consume verification
 examples/custom/       Custom binary with registered extensions
 internal/
   config/              YAML loading and validation

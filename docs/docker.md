@@ -19,6 +19,26 @@ cat docker/output/records.jsonl
 
 Append a line to `docker/sample-data/app.log` and confirm a new JSONL record appears.
 
+## Kafka smoke test
+
+Automated round-trip: forwarder publishes to Kafka; a console consumer verifies JSON records.
+
+```bash
+./scripts/kafka-smoke.sh
+```
+
+Stack (`docker-compose.kafka.yaml`):
+
+| Service | Role |
+|---------|------|
+| `kafka` | Single-node Apache Kafka (KRaft) |
+| `kafka-init` | Creates topic `logs` |
+| `log-forwarder` | Tails `docker/sample-data/kafka-smoke.log` → topic `logs` |
+
+Config: `configs/example-docker-kafka.yaml` (PLAINTEXT broker `kafka:9092`).
+
+CI: run the **Kafka smoke** workflow manually from GitHub Actions (`workflow_dispatch`).
+
 ## Pull and run
 
 ```bash

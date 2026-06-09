@@ -1,0 +1,66 @@
+# Kafka sidecar / compose example — brokers use the Docker service name.
+#
+# Local smoke test:
+#   ./scripts/kafka-smoke.sh
+#
+# Or manually:
+#   docker compose -f docker-compose.kafka.yaml up --build
+
+watch:
+  poll: 1s
+  sources:
+    - path: /var/log/app
+      patterns:
+        - "kafka-smoke.log"
+  state:
+    path: /state/watermarks.json
+
+sink:
+  type: kafka
+  kafka:
+    brokers:
+      - kafka:9092
+    topic: logs
+    security:
+      protocol: PLAINTEXT
+
+parser:
+  type: line
+
+transform:
+  type: delimiter
+  delimiter: "\t"
+  columns:
+    - timestamp
+    - level
+    - message
+  on_error: wrap
+
+enrichers:
+  - type: static
+    fields:
+      application_id: kafka-smoke-test
+      environment: docker
+  - type: host
+
+pipeline:
+  buffer_size: 64
+  on_full: block
+  publish_retry:
+    initial_backoff: 100ms
+    max_backoff: 1s
+    max_attempts: 0
+
+metrics:
+  enabled: true
+  host: 0.0.0.0
+  port: 8080
+  path: /metrics
+  readiness:
+    sink_check: true
+    buffer_threshold: 0.8
+
+logging:
+  level: info
+  format: json
+  status_interval: 0s
