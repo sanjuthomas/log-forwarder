@@ -1,0 +1,211 @@
+Log Forwarder — Battle Test & Production Readiness Guide
+=========================================================
+
+What you have today
+-------------------
+
+Layer                    Status
+-----                    ------
+Unit tests               Good coverage: config, parser, transform, sinks, pipeline retry, watermarks
+CI                       go test ./... + build on every PR
+Observability            Prometheus metrics + /health (when metrics.enabled: true)
+Resiliency               Publish retry with configurable backoff; startup sink check
+State                    Watermarks + rotation via inode
+Integration / load / chaos tests   Not in repo — you add these
+
+Production readiness is mostly how you deploy, test, and operate it, not only more code.
+
+
+1. Battle-test plan (recommended order)
+---------------------------------------
+
+A. Correctness (do first)
+-------------------------
+
+Use a real config close to prod (e.g. configs/example-spring-boot-kafka.yaml).
+
+Single-line and multiline:
+
+  mkdir -p logs/spring-boot
+  ./bin/log-forwarder -config configs/example-spring-boot-kafka.yaml
+
+  - Append a normal INFO line -> one JSON record at the sink.
+  - Append an ERROR + stack trace (several lines) -> one record with full message.
+  - Confirm enrichers (application_id, hostname, _path).
+
+Watermark / restart:
+
+  1. Write 10 lines, confirm 10 records published.
+  2. Stop forwarder, append 5 more lines.
+  3. Restart -> only the 5 new lines should publish (not 15).
+  4. Delete that file's entry in the watermark JSON -> restart -> expect re-publish from start.
+
+Log rotation:
+
+  mv logs/spring-boot/app.log logs/spring-boot/app.log.1
+  # app writes new app.log
+
+Confirm tailing continues on the new file (tailing file from beginning in logs).
+
+Parse failures:
+
+Feed a line that does not match your regex with on_error: wrap -> _raw / _error records;
+with skip -> dropped + log_forwarder_lines_skipped.
+
+
+B. Sink failure behavior
+--------------------------
+
+Kafka down after startup:
+
+  - Start forwarder, then stop Kafka.
+  - Expect: publish failed, retrying, metrics log_forwarder_kafka_publish_failures /
+    _retries rise, watermark does not advance for stuck records.
+  - Bring Kafka back -> publishing should resume; no duplicate lines for already-watermarked offsets.
+
+HTTP sink:
+
+  - Use example-spring-boot-http-noauth.yaml; stop the ingest service.
+  - Same retry behavior; tune pipeline.publish_retry.max_attempts if you want fail-fast vs block forever.
+
+File sink:
+
+  - Fill disk or chmod output dir read-only -> observe failures and retries.
+
+
+C. Load / soak (battle)
+-----------------------
+
+There is no built-in load generator. Script one:
+
+  # Sustained INFO lines (~1000/sec) — adjust rate
+  while true; do
+    printf '%s  INFO 1 --- [main] c.a.App : load test line\n' \
+      "$(date '+%Y-%m-%d %H:%M:%S.000')" >> logs/spring-boot/load.log
+    sleep 0.001
+  done
+
+Watch for 30–60 minutes minimum; ideally 24–72 hours:
+
+Signal                                      Healthy              Problem
+------                                      -------              -------
+log_forwarder_lines_read ~= lines_published Yes                  Parse skips or publish stall
+pipeline_buffer_depth / capacity            Stays low            Pipeline falling behind
+process_memory_usage                        Stable               Leak or unbounded backlog
+CPU                                         Stable               Regex/multiline hot path under load
+
+Heavy multiline — periodically append full stack traces (10–50 lines) while load test runs;
+confirm one record per error and latency spikes are acceptable.
+
+
+D. Chaos / recovery
+-------------------
+
+Scenario                                    What to verify
+--------                                    ----------------
+kill -9 forwarder mid-publish               Restart resumes from watermark; at-most-once vs
+                                            at-least-once behavior at boundary
+Network partition to sink                   Retries, no silent data loss without alert
+Two forwarders, same watermark file         Bad — document don't do this
+Two forwarders, different watermarks, same logs   OK for fan-out to two sinks
+
+
+2. Production-ready checklist
+-----------------------------
+
+Config & deployment
+
+  [ ] Absolute paths for watch.sources, watch.state.path, sink.file.path, logging.file
+  [ ] Dedicated user with read-only on log dirs, write on watermark + file sink only
+  [ ] metrics.enabled: true on a dedicated port (Spring Boot examples use 10001–10003)
+  [ ] pipeline.publish_timeout and publish_retry tuned for your sink SLA
+  [ ] One process -> one sink; separate watch.state.path per instance
+  [ ] systemd (or k8s) with Restart=on-failure, WorkingDirectory set correctly
+  [ ] Kafka: TLS/SASL from examples/kafka/; not PLAINTEXT in prod
+  [ ] HTTP: http-noauth only on trusted networks; use custom sink for OAuth later
+
+Observability & alerts
+
+Enable metrics and alert on:
+
+  - rate(log_forwarder_kafka_publish_failures[5m]) > 0 (sustained)
+  - log_forwarder_pipeline_buffer_depth / capacity > 0.8 (sustained)
+  - log_forwarder_files_watched == 0 when logs expected
+  - up == 0 on scrape target
+  - Gap: lines_read >> lines_published
+
+Add logging for ops:
+
+  logging:
+    level: info
+    format: json
+    file: /var/log/log-forwarder/forwarder.log
+    status_interval: 30s
+
+Note: /health is liveness only — it does not detect sink outage after startup.
+Alerts on publish failures are required.
+
+Security
+
+  [ ] Watermark and forwarder log outside watched directories (validated at startup)
+  [ ] Metrics bound to 127.0.0.1 or firewalled if not 0.0.0.0
+  [ ] Secrets in config via your secret manager (env-substitution is not built-in yet —
+      inject at deploy time)
+
+Capacity planning
+
+  - pipeline.buffer_size (default 1024): under sustained overload, watcher blocks when full
+    (on_full: block)
+  - Kafka: monitor topic lag and broker capacity
+  - Regex + multiline on very high volume: profile CPU; consider simpler formats or JSON
+    logging at the app
+
+
+3. Gaps to close before calling it production grade
+---------------------------------------------------
+
+Gap                              Risk                         Mitigation
+---                              ----                         ----------
+No integration tests in CI       Regressions against real     Add docker-compose test job or
+                                 Kafka/files                  staging smoke tests
+No load benchmarks in repo       Unknown breaking point       Run soak tests above; add
+                                                              go test -bench later if needed
+Publish retry blocks pipeline    One bad record blocks        Tune max_attempts, fix sink
+                                 tailing                      quickly, monitor buffer depth
+Health does not check sink       Silent outage after startup  Prometheus alerts on publish failures
+Single binary, no HA story       Host failure stops           Supervisor restart; optional second
+                                 forwarding                   host with different watermark if
+                                                              duplicate shipping is OK
+http-noauth only                 No auth to ingest            Custom sink or network policy
+GSSAPI Kafka                     Config validates but sink    Use SCRAM/OAUTHBEARER
+                                 not implemented
+
+
+4. Suggested staging workflow
+-----------------------------
+
+  1. Unit tests (CI)           -> go test ./...
+  2. Local smoke               -> Spring Boot config + sample logs + sink verify
+  3. Staging soak (24h+)       -> realistic volume + rotation + restarts
+  4. Chaos afternoon           -> kill process, sink, network
+  5. Prod canary               -> one host / one app, watch metrics 1 week
+  6. Roll out                  -> same config pattern, unique watermarks & ports
+
+
+5. Quick am I ready command set
+-------------------------------
+
+  go test ./...
+  curl -sf http://127.0.0.1:10002/health          # your metrics port
+  curl -s http://127.0.0.1:10002/metrics | grep log_forwarder_lines_
+  curl -s http://127.0.0.1:10002/metrics | grep log_forwarder_pipeline_buffer
+
+
+Bottom line
+-----------
+
+Battle-testing means proving correctness (parse, multiline, watermarks, rotation),
+resilience (sink down, restart, kill -9), and sustained load (soak + metrics).
+Production-ready means absolute paths, metrics/alerts, tuned retry/timeouts, one sink per
+process, systemd, and staged rollout — plus closing integration/load testing gaps in your
+own pipeline.
