@@ -1,0 +1,17 @@
+name: Kafka smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  kafka-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Kafka smoke test
+        run: |
+          chmod +x scripts/kafka-smoke.sh
+          ./scripts/kafka-smoke.sh

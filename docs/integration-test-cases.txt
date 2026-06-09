@@ -69,14 +69,18 @@ CFG-1 TestIntegration_ExampleConfigsValidate
                                              All configs/*.yaml and examples/kafka/*.yaml
                                              load and pass Validate() without error.
 
+KAFKA-1 scripts/kafka-smoke.sh (manual / CI workflow_dispatch)
+                                             docker-compose.kafka.yaml round-trip: forwarder
+                                             publishes JSON to topic logs; consumer asserts content.
+
 
 MANUAL / STAGING ONLY — Not automated (and why)
 -----------------------------------------------
 
 ID    Scenario                               Why manual
 --    ---------                              ----------
-M-1   Real Kafka publish (TLS/SASL/SCRAM)    Requires live broker cluster; docker-compose
-                                             or staging Kafka recommended.
+M-1   Real Kafka publish (TLS/SASL/SCRAM)    PLAINTEXT round-trip automated via
+                                             scripts/kafka-smoke.sh; TLS/SASL still manual
 
 M-2   Kafka topic lag under sustained load   Needs broker metrics and multi-hour soak.
 
@@ -108,7 +112,7 @@ RECOMMENDED STAGING ADDITIONS (future automation)
 
 These could be automated later with docker-compose or testcontainers:
 
-  - Kafka sink round-trip: forwarder -> Kafka -> consumer asserts JSON
+  - Kafka sink round-trip: forwarder -> Kafka -> consumer asserts JSON  [DONE: kafka-smoke.sh]
   - Publish failure sustained: stop broker, assert watermark stall + metric alerts
   - Load generator: scripted append loop + assert buffer_depth stays bounded
   - File sink concurrent rotation under poll interval stress
@@ -120,7 +124,7 @@ TEST MATRIX (sink x parser)
                     line parser    multiline parser
 file sink           E2E-5,6        E2E-1,2,3,4
 http-noauth sink    E2E-7          (same as E2E-1 pattern — add if needed)
-kafka sink          manual M-1     manual M-1
+kafka sink          KAFKA-1, manual M-1 (TLS/SASL)   KAFKA-1 (PLAINTEXT)
 
 
 COVERAGE GAPS (acceptable for v1)
