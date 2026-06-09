@@ -1,4 +1,9 @@
-# Spring Boot default console log format (Logback):
+# Spring Boot default console log format (Logback) — Kafka sink.
+# See also: example-spring-boot-file.yaml, example-spring-boot-http-noauth.yaml
+#
+# Run:
+#   ./bin/log-forwarder -config configs/example-spring-boot-kafka.yaml
+#
 #   <timestamp>  <level> <pid> --- [<thread>] <logger> : <message>
 #
 # Multiline stack traces (indented frames, Caused by:, etc.) are grouped into one
@@ -27,10 +32,12 @@ watch:
         - "*.log.*"
         - "*.out"
 
-kafka:
-  brokers:
-    - localhost:9092
-  topic: logs
+sink:
+  type: kafka
+  kafka:
+    brokers:
+      - localhost:9092
+    topic: logs
 
 parser:
   type: multiline

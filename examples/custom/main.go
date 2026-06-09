@@ -94,27 +94,28 @@ func main() {
 		os.Exit(1)
 	}
 
-	kafkaSink, err := sink.NewKafka(cfg.Kafka)
+	recordSink, err := sink.New(cfg.Sink)
 	if err != nil {
-		logger.Error("create kafka sink", "error", err)
+		logger.Error("create sink", "type", cfg.Sink.Type, "error", err)
 		os.Exit(1)
 	}
-	defer kafkaSink.Close()
+	defer recordSink.Close()
 
-	pingCtx, cancel := context.WithTimeout(context.Background(), cfg.Kafka.ConnectTimeoutDuration())
-	err = sink.CheckConnectivity(pingCtx, cfg.Kafka)
-	cancel()
-	if err != nil {
-		logger.Error(
-			"kafka unavailable at startup; refusing to start forwarder",
-			"brokers", cfg.Kafka.Brokers,
-			"topic", cfg.Kafka.Topic,
-			"error", err,
-		)
-		os.Exit(1)
+	if checker, ok := recordSink.(sink.Checker); ok {
+		pingCtx, cancel := context.WithTimeout(context.Background(), cfg.SinkConnectTimeout())
+		err = checker.Check(pingCtx)
+		cancel()
+		if err != nil {
+			logger.Error(
+				"sink unavailable at startup; refusing to start forwarder",
+				"type", cfg.Sink.Type,
+				"error", err,
+			)
+			os.Exit(1)
+		}
 	}
 
-	pipe, err := pipeline.New(cfg, kafkaSink, logger, pipeline.Options{
+	pipe, err := pipeline.New(cfg, recordSink, logger, pipeline.Options{
 		Watermarks: watermarks,
 	})
 	if err != nil {

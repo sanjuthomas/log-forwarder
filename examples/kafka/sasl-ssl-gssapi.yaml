@@ -7,22 +7,24 @@ watch:
   patterns:
     - "*.log"
 
-kafka:
-  brokers:
-    - kafka.example.com:9093
-  topic: logs
-  security:
-    protocol: SASL_SSL
-    tls:
-      ca_file: /etc/kafka/ca.crt
-    sasl:
-      mechanism: GSSAPI
-      kerberos:
-        service_name: kafka
-        realm: EXAMPLE.COM
-        principal: log-forwarder/host.example.com@EXAMPLE.COM
-        keytab: /etc/kafka/log-forwarder.keytab
-        config_path: /etc/krb5.conf
+sink:
+  type: kafka
+  kafka:
+    brokers:
+      - kafka.example.com:9093
+    topic: logs
+    security:
+      protocol: SASL_SSL
+      tls:
+        ca_file: /etc/kafka/ca.crt
+      sasl:
+        mechanism: GSSAPI
+        kerberos:
+          service_name: kafka
+          realm: EXAMPLE.COM
+          principal: log-forwarder/host.example.com@EXAMPLE.COM
+          keytab: /etc/kafka/log-forwarder.keytab
+          config_path: /etc/krb5.conf
 
 transform:
   type: delimiter

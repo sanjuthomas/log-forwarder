@@ -73,14 +73,17 @@ func TestBuildSASLMechanismGSSAPINotImplemented(t *testing.T) {
 func TestNewKafkaPlaintext(t *testing.T) {
 	t.Parallel()
 
-	sink, err := NewKafka(config.KafkaConfig{
-		Brokers: []string{"localhost:9092"},
-		Topic:   "logs",
+	s, err := New(config.SinkConfig{
+		Type: "kafka",
+		Kafka: &config.KafkaConfig{
+			Brokers: []string{"localhost:9092"},
+			Topic:   "logs",
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := sink.Close(); err != nil {
+	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -88,19 +91,22 @@ func TestNewKafkaPlaintext(t *testing.T) {
 func TestNewKafkaGSSAPIFailsAtSink(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewKafka(config.KafkaConfig{
-		Brokers: []string{"kafka.example.com:9093"},
-		Topic:   "logs",
-		Security: &config.KafkaSecurityConfig{
-			Protocol: config.KafkaProtocolSASLSSL,
-			TLS: &config.KafkaTLSConfig{
-				InsecureSkipVerify: true,
-			},
-			SASL: &config.KafkaSASLConfig{
-				Mechanism: config.KafkaSASLGSSAPI,
-				Kerberos: &config.KafkaKerberosConfig{
-					Keytab:    "/etc/kafka/log-forwarder.keytab",
-					Principal: "log-forwarder/host@EXAMPLE.COM",
+	_, err := New(config.SinkConfig{
+		Type: "kafka",
+		Kafka: &config.KafkaConfig{
+			Brokers: []string{"kafka.example.com:9093"},
+			Topic:   "logs",
+			Security: &config.KafkaSecurityConfig{
+				Protocol: config.KafkaProtocolSASLSSL,
+				TLS: &config.KafkaTLSConfig{
+					InsecureSkipVerify: true,
+				},
+				SASL: &config.KafkaSASLConfig{
+					Mechanism: config.KafkaSASLGSSAPI,
+					Kerberos: &config.KafkaKerberosConfig{
+						Keytab:    "/etc/kafka/log-forwarder.keytab",
+						Principal: "log-forwarder/host@EXAMPLE.COM",
+					},
 				},
 			},
 		},

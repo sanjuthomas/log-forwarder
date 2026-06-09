@@ -41,30 +41,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	kafkaSink, err := sink.NewKafka(cfg.Kafka)
+	recordSink, err := sink.New(cfg.Sink)
 	if err != nil {
-		logger.Error("create kafka sink", "error", err)
+		logger.Error("create sink", "type", cfg.Sink.Type, "error", err)
 		os.Exit(1)
 	}
 	defer func() {
-		if err := kafkaSink.Close(); err != nil {
-			logger.Error("close kafka sink", "error", err)
+		if err := recordSink.Close(); err != nil {
+			logger.Error("close sink", "error", err)
 		}
 	}()
 
-	pingCtx, cancel := context.WithTimeout(context.Background(), cfg.Kafka.ConnectTimeoutDuration())
-	err = sink.CheckConnectivity(pingCtx, cfg.Kafka)
-	cancel()
-	if err != nil {
-		logger.Error(
-			"kafka unavailable at startup; refusing to start forwarder",
-			"brokers", cfg.Kafka.Brokers,
-			"topic", cfg.Kafka.Topic,
-			"error", err,
-		)
+	if err := checkSinkAtStartup(recordSink, cfg); err != nil {
+		logger.Error("sink unavailable at startup; refusing to start forwarder", "type", cfg.Sink.Type, "error", err)
 		os.Exit(1)
 	}
-	logger.Info("kafka connectivity verified", "brokers", cfg.Kafka.Brokers, "topic", cfg.Kafka.Topic)
+	logger.Info("sink connectivity verified", "type", cfg.Sink.Type)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -100,7 +92,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	pipe, err := pipeline.New(cfg, kafkaSink, logger, pipeline.Options{
+	pipe, err := pipeline.New(cfg, recordSink, logger, pipeline.Options{
 		Watermarks: watermarks,
 		Metrics:    collector,
 	})
@@ -121,7 +113,7 @@ func main() {
 
 	startAttrs := []any{
 		"sources", cfg.Watch.Entries(),
-		"topic", cfg.Kafka.Topic,
+		"sink_type", cfg.Sink.Type,
 		"state_path", cfg.StatePath(),
 		"metrics_enabled", cfg.Metrics.Enabled,
 	}
@@ -140,6 +132,17 @@ func main() {
 
 	close(lines)
 	logger.Info("log forwarder stopped")
+}
+
+func checkSinkAtStartup(s sink.Sink, cfg *config.Config) error {
+	checker, ok := s.(sink.Checker)
+	if !ok {
+		return nil
+	}
+
+	pingCtx, cancel := context.WithTimeout(context.Background(), cfg.SinkConnectTimeout())
+	defer cancel()
+	return checker.Check(pingCtx)
 }
 
 func logStatus(ctx context.Context, logger *slog.Logger, w *watcher.Watcher, interval time.Duration) {

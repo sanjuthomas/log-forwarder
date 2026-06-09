@@ -149,7 +149,7 @@ func (p *Pipeline) publishWithRetry(ctx context.Context, payload []byte) error {
 		}
 
 		p.metrics.RecordPublishFailure(ctx)
-		p.logger.Warn("kafka publish failed, retrying", "error", err, "retry_in", backoff)
+		p.logger.Warn("publish failed, retrying", "error", err, "retry_in", backoff)
 
 		select {
 		case <-ctx.Done():

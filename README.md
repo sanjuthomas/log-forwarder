@@ -1,6 +1,6 @@
 # log-forwarder
 
-A lightweight Go service that tails log files, transforms lines into structured JSON, enriches records with metadata, and publishes them to Kafka.
+A lightweight Go service that tails log files, parses and transforms lines into structured JSON, enriches records with metadata, and publishes them through a **pluggable sink** to the destination you configure.
 
 ```mermaid
 flowchart LR
@@ -13,28 +13,41 @@ flowchart LR
         parser["Parser\nline · multiline"]
         transform["Transform\ndelimiter / regex"]
         enrich["Enrich\nhost · static · …"]
-        sink["Kafka sink\nJSON records"]
-        watcher --> parser --> transform --> enrich --> sink
+        sinkIf["Sink interface\nPublish · Close · Check"]
+        watcher --> parser --> transform --> enrich --> sinkIf
     end
 
-    subgraph network["Network"]
-        conn["Kafka protocol\nPLAINTEXT · SSL · SASL"]
+    subgraph sinks["Pluggable sinks (one per config)"]
+        kafkaSink["kafka"]
+        fileSink["file"]
+        httpSink["http-noauth"]
+        customSink["custom · bigquery · …"]
     end
 
-    subgraph cluster["Kafka cluster"]
-        brokers["Brokers"]
-        topic["Topic"]
-        brokers --> topic
+    subgraph destinations["Destinations"]
+        kafkaDest["Kafka topic"]
+        fileDest["JSONL file"]
+        httpDest["Open HTTP endpoint"]
+        customDest["Your API / warehouse"]
     end
 
     logs -->|"read new lines"| watcher
-    sink -->|"publish"| conn --> brokers
+    sinkIf -->|"sink.type"| kafkaSink
+    sinkIf --> fileSink
+    sinkIf --> httpSink
+    sinkIf --> customSink
+    kafkaSink --> kafkaDest
+    fileSink --> fileDest
+    httpSink --> httpDest
+    customSink --> customDest
 ```
+
+The pipeline always ends at the same `sink.Sink` interface. `sink.type` in config selects the implementation; only one sink is active at runtime. Register additional types (for example `http-oauth2` or BigQuery streaming) in a custom binary via `sink.Register`.
 
 ## Requirements
 
 - **Go 1.22+**
-- **Kafka** cluster reachable from the host running the forwarder
+- A reachable **sink destination** (Kafka cluster, writable file path, or open HTTP endpoint) unless you use a custom sink
 - Read access to the log directories configured under `watch`
 
 ## Build
@@ -52,7 +65,7 @@ Cross-compile for Linux (typical server target):
 GOOS=linux GOARCH=amd64 go build -o bin/log-forwarder-linux ./cmd/log-forwarder
 ```
 
-Build a binary with custom transformers and enrichers (see [Custom extensions](#custom-extensions)):
+Build a binary with custom parsers, transformers, enrichers, or sinks (see [Custom extensions](#custom-extensions)):
 
 ```bash
 go build -o bin/log-forwarder-custom ./examples/custom
@@ -65,7 +78,7 @@ go build -o bin/log-forwarder-custom ./examples/custom
 If you omit `-config`, the forwarder uses built-in defaults:
 
 - Watches the **current working directory** for `*.log*` files
-- Publishes to Kafka at `localhost:9092`, topic `logs`
+- Publishes to Kafka at `localhost:9092`, topic `logs` (`sink.type: kafka`)
 - Uses the `delimiter` transformer (tab-separated) with `on_error: wrap`
 - Adds the host's hostname via the `host` enricher
 
@@ -135,7 +148,7 @@ The watcher creates missing watch directories, detects new and rotated files (vi
 
 #### Watermarks
 
-Watermarks persist how far the forwarder has read in each tailed file so a **restart does not re-publish** lines that were already shipped to Kafka.
+Watermarks persist how far the forwarder has read in each tailed file so a **restart does not re-publish** lines that were already shipped to the sink.
 
 **Default location:** `.log-forwarder/watermarks.json` in the forwarder's **current working directory** (the directory you start the process from). Relative paths in config are resolved the same way.
 
@@ -183,42 +196,88 @@ Use an absolute path in production so the file location does not depend on where
 
 **Operational notes:**
 
-- **Delete the watermark file** (or a single entry) to force a full re-read of matching files. Those lines will be published to Kafka again.
+- **Delete the watermark file** (or a single entry) to force a full re-read of matching files. Those lines will be published to the sink again.
 - **Do not place the watermark file inside a watched directory** — config validation rejects paths that would be tailed as log input. Keep it outside `watch.paths` / `watch.sources`, similar to `logging.file`.
 - Writes are atomic (write to a `.tmp` file, then rename) to reduce the risk of a corrupted state file on crash.
 
-### `kafka`
+### `sink`
+
+Select where JSON records are written. Built-in types: `kafka` (default), `file`, and `http-noauth`. Register custom sinks (for example BigQuery streaming or HTTP with OAuth2) in a custom binary — see [Custom sink](#custom-sink).
 
 | Field | Description |
 |-------|-------------|
-| `brokers` | List of broker addresses (e.g. `localhost:9092`) |
-| `topic` | Topic to publish JSON records to |
-| `security` | Optional TLS and SASL settings (see below) |
+| `type` | `kafka`, `file`, `http-noauth`, or a custom registered type |
+| `kafka` | Settings when `type` is `kafka` |
+| `file` | Settings when `type` is `file` |
+| `http_noauth` | Settings when `type` is `http-noauth` |
+| `options` | Free-form map for custom sink implementations |
 
-Omit `security` for unencrypted local development (`PLAINTEXT`).
+#### Kafka sink
 
 ```yaml
-kafka:
-  brokers:
-    - kafka.example.com:9093
-  topic: logs
-  security:
-    protocol: SASL_SSL
-    tls:
-      ca_file: /etc/kafka/ca.crt
-      cert_file: /etc/kafka/client.crt   # optional — mTLS
-      key_file: /etc/kafka/client.key
-    sasl:
-      mechanism: SCRAM-SHA-512
-      username: log-forwarder
-      password: secret
+sink:
+  type: kafka
+  kafka:
+    brokers:
+      - kafka.example.com:9093
+    topic: logs
+    connect_timeout: 10s
+    security:
+      protocol: SASL_SSL
+      tls:
+        ca_file: /etc/kafka/ca.crt
+        cert_file: /etc/kafka/client.crt   # optional — mTLS
+        key_file: /etc/kafka/client.key
+      sasl:
+        mechanism: SCRAM-SHA-512
+        username: log-forwarder
+        password: secret
 ```
+
+| `kafka` field | Description |
+|---------------|-------------|
+| `brokers` | List of broker addresses (e.g. `localhost:9092`) |
+| `topic` | Topic to publish JSON records to |
+| `connect_timeout` | Startup connectivity check timeout (default `10s`) |
+| `security` | Optional TLS and SASL settings |
+
+Omit `security` for unencrypted local development (`PLAINTEXT`).
 
 Supported protocols: `PLAINTEXT`, `SSL`, `SASL_PLAINTEXT`, `SASL_SSL`.
 
 Supported SASL mechanisms: `PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `OAUTHBEARER`. Kerberos (`GSSAPI`) config is accepted but not yet implemented in the sink.
 
-**Example configs for every security mode:** [`examples/kafka/`](examples/kafka/)
+**Example configs for every Kafka security mode:** [`examples/kafka/`](examples/kafka/)
+
+#### File sink
+
+Appends one JSON record per line (JSONL) to a local file. See [`configs/example-file.yaml`](configs/example-file.yaml).
+
+```yaml
+sink:
+  type: file
+  file:
+    path: /var/lib/log-forwarder/forwarded.jsonl
+```
+
+The parent directory is created if needed. The file path must not be inside a watched directory or match a watch pattern.
+
+#### HTTP sink (no authentication)
+
+POSTs each JSON record to an **open** HTTP ingest endpoint. This built-in sink does not send credentials — no `Authorization` header, API keys, or OIDC token exchange. Use it for local development, trusted internal networks, or endpoints protected by network policy rather than application-level auth.
+
+See [`configs/example-http-noauth.yaml`](configs/example-http-noauth.yaml). For OAuth2 or API-key auth, register a custom sink (a dedicated `http-oauth2` built-in may be added later).
+
+```yaml
+sink:
+  type: http-noauth
+  http_noauth:
+    url: http://localhost:8081/ingest
+    method: POST
+    timeout: 30s
+```
+
+Non-2xx responses are treated as publish failures and retried by the pipeline.
 
 ### `parser`
 
@@ -236,7 +295,7 @@ parser:
   type: line
 ```
 
-**Multiline parser** — continuation lines are buffered until the next line matching `start_pattern`. Use for stack traces and other multi-line log events ([`configs/example-spring-boot.yaml`](configs/example-spring-boot.yaml)):
+**Multiline parser** — continuation lines are buffered until the next line matching `start_pattern`. Use for stack traces and other multi-line log events (Spring Boot examples below):
 
 ```yaml
 parser:
@@ -284,7 +343,13 @@ transform:
   on_error: wrap
 ```
 
-**Spring Boot default console format** ([`configs/example-spring-boot.yaml`](configs/example-spring-boot.yaml)):
+**Spring Boot default console format** — multiline parser + regex transform for Logback layout. Example configs per sink:
+
+| Sink | Config |
+|------|--------|
+| Kafka | [`configs/example-spring-boot-kafka.yaml`](configs/example-spring-boot-kafka.yaml) |
+| File (JSONL) | [`configs/example-spring-boot-file.yaml`](configs/example-spring-boot-file.yaml) |
+| HTTP (no auth) | [`configs/example-spring-boot-http-noauth.yaml`](configs/example-spring-boot-http-noauth.yaml) |
 
 ```yaml
 parser:
@@ -296,6 +361,8 @@ transform:
   pattern: '^(?s)(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\S+)\s+(?P<pid>\d+)\s+---\s+\[\s*(?P<thread>[^\]]+?)\s*\]\s+(?P<logger>\S+)\s+:\s+(?P<message>.*)$'
   on_error: wrap
 ```
+
+Only the `sink` block differs between the three Spring Boot examples — parser, transform, and enrichers are shared.
 
 ### `enrichers`
 
@@ -456,6 +523,27 @@ Adds fixed key/value pairs from `fields` to every record.
 
 Adds `hostname` (from `os.Hostname()`, or `"unknown"` on failure).
 
+## Built-in sinks
+
+Every destination implements the same interface:
+
+```go
+type Sink interface {
+    Publish(ctx context.Context, payload []byte) error
+    Close() error
+}
+```
+
+Sinks may also implement `sink.Checker` for a startup connectivity probe. Select the implementation with `sink.type` in config (see [`sink`](#sink) above).
+
+| Type | Description |
+|------|-------------|
+| `kafka` | Publish JSON records to a Kafka topic (default) |
+| `file` | Append JSONL to a local file |
+| `http-noauth` | POST JSON to an open HTTP endpoint (no credentials) |
+
+Register custom types with `sink.Register` in a custom binary — for example BigQuery streaming or HTTP with OAuth2.
+
 ## Custom extensions
 
 Built-in parsers, transformers, and enrichers are registered in package `init()` functions. To add your own, register factories and build a **custom binary** — the default `./cmd/log-forwarder` entrypoint only includes built-ins.
@@ -597,6 +685,49 @@ enrichers:
 
 Use `fields` to pass arbitrary string configuration into your enricher factory.
 
+### Custom sink
+
+1. Implement the `sink.Sink` interface:
+
+```go
+type Sink interface {
+    Publish(ctx context.Context, payload []byte) error
+    Close() error
+}
+```
+
+2. Optionally implement `sink.Checker` for a startup connectivity probe:
+
+```go
+type Checker interface {
+    Check(ctx context.Context) error
+}
+```
+
+3. Register a factory in `init()`:
+
+```go
+func init() {
+    sink.Register("bigquery", func(cfg config.SinkConfig) (sink.Sink, error) {
+        project, _ := cfg.Options["project"].(string)
+        dataset, _ := cfg.Options["dataset"].(string)
+        return newBigQuerySink(project, dataset)
+    })
+}
+```
+
+4. Reference the type in config and pass options:
+
+```yaml
+sink:
+  type: bigquery
+  options:
+    project: my-gcp-project
+    dataset: application_logs
+```
+
+The factory receives the full `SinkConfig`, so custom sinks can read `options` and ignore built-in `kafka` / `file` / `http_noauth` blocks.
+
 ### Build and run the custom binary
 
 ```bash
@@ -651,10 +782,12 @@ watch:
       patterns:
         - "*.log"
 
-kafka:
-  brokers:
-    - localhost:9092
-  topic: logs
+sink:
+  type: kafka
+  kafka:
+    brokers:
+      - localhost:9092
+    topic: logs
 
 transform:
   type: delimiter
@@ -740,7 +873,7 @@ If you changed `metrics.path` in config, use that value for `metrics_path`.
 
 ### 3. Health checks
 
-Use `/health` for liveness probes. The endpoint confirms the management server is running; it does not verify Kafka connectivity on every request (Kafka is checked at startup).
+Use `/health` for liveness probes. The endpoint confirms the management server is running; it does not verify sink connectivity on every request (the sink is checked at startup when it implements `sink.Checker`).
 
 **Kubernetes example:**
 
@@ -753,7 +886,7 @@ livenessProbe:
   periodSeconds: 30
 ```
 
-Pair this with log monitoring or alerts on `log_forwarder_kafka_publish_failures` to detect downstream Kafka issues after startup.
+Pair this with log monitoring or alerts on `log_forwarder_kafka_publish_failures` to detect downstream sink issues after startup.
 
 ### 4. Log-based status
 
@@ -773,9 +906,9 @@ Other useful log lines:
 | Log message | Meaning |
 |-------------|---------|
 | `log forwarder started` | Process is up; includes sources, topic, and metrics address when enabled |
-| `kafka connectivity verified` | Startup Kafka check passed |
-| `kafka unavailable at startup` | Forwarder refused to start — broker or topic unreachable |
-| `kafka publish failed, retrying` | Transient publish error; check Kafka and network |
+| `sink connectivity verified` | Startup sink check passed |
+| `sink unavailable at startup` | Forwarder refused to start — destination unreachable |
+| `publish failed, retrying` | Transient publish error; check sink destination and network |
 | `forwarder stopped` | Clean or error shutdown |
 
 ### 5. Metrics reference
@@ -785,12 +918,12 @@ Other useful log lines:
 | Metric | Description |
 |--------|-------------|
 | `log_forwarder_lines_read` | Lines read from watched files |
-| `log_forwarder_lines_published` | Lines published to Kafka |
+| `log_forwarder_lines_published` | Lines published to the configured sink |
 | `log_forwarder_lines_skipped` | Lines dropped (`transform.on_error: skip`) |
 | `log_forwarder_transform_errors` | Transform failures |
-| `log_forwarder_kafka_publish_failures` | Failed Kafka publish attempts |
+| `log_forwarder_kafka_publish_failures` | Failed sink publish attempts |
 | `log_forwarder_kafka_publish_retries` | Retries after a publish failure |
-| `log_forwarder_kafka_publish_duration` | Kafka publish latency (histogram, seconds) |
+| `log_forwarder_kafka_publish_duration` | Sink publish latency (histogram, seconds) |
 | `log_forwarder_files_watched` | Files currently being tailed |
 | `log_forwarder_pipeline_buffer_depth` | Events queued between watcher and pipeline |
 | `log_forwarder_pipeline_buffer_capacity` | Configured `pipeline.buffer_size` |
@@ -810,9 +943,9 @@ Other useful log lines:
 
 | Signal | Suggested condition | Likely cause |
 |--------|---------------------|--------------|
-| Publish failures | `rate(log_forwarder_kafka_publish_failures[5m]) > 0` sustained | Kafka down, auth/TLS issue, or network partition |
-| Publish retries | `rate(log_forwarder_kafka_publish_retries[5m])` rising | Intermittent broker or timeout pressure |
-| Publish latency | `histogram_quantile(0.95, rate(log_forwarder_kafka_publish_duration_bucket[5m]))` high | Broker load, network latency, or undersized cluster |
+| Publish failures | `rate(log_forwarder_kafka_publish_failures[5m]) > 0` sustained | Sink unreachable, auth/TLS issue, or network partition |
+| Publish retries | `rate(log_forwarder_kafka_publish_retries[5m])` rising | Intermittent sink or timeout pressure |
+| Publish latency | `histogram_quantile(0.95, rate(log_forwarder_kafka_publish_duration_bucket[5m]))` high | Sink load, network latency, or slow endpoint |
 | Buffer backlog | `log_forwarder_pipeline_buffer_depth / log_forwarder_pipeline_buffer_capacity > 0.8` sustained | Pipeline slower than ingest; risk of backpressure |
 | No files watched | `log_forwarder_files_watched == 0` while logs are expected | Wrong watch paths, patterns, or permissions |
 | Read/publish gap | `rate(log_forwarder_lines_read[5m])` >> `rate(log_forwarder_lines_published[5m])` | Transform skips, persistent publish failures, or pipeline stall |
@@ -841,7 +974,7 @@ There is no packaged deployment artifact in this repository. A typical productio
 1. Cross-compile the binary for the target OS/arch.
 2. Install the binary and config on the host (e.g. `/opt/log-forwarder/`).
 3. Ensure the service user can read configured log paths.
-4. Point `kafka.brokers` at your production cluster.
+4. Point `sink.kafka.brokers` at your production cluster (or switch `sink.type` to `file` / `http-noauth`).
 5. Run under a process supervisor such as systemd:
 
 ```ini
@@ -876,7 +1009,7 @@ internal/
   transform/           Transformer registry and built-ins (delimiter, regex, tab)
   enrich/              Enricher registry and built-ins (static, host)
   pipeline/            Transform → enrich → publish orchestration
-  sink/                Kafka publisher
+  sink/                Pluggable sinks (kafka, file, http-noauth)
 ```
 
 ## License

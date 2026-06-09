@@ -53,9 +53,12 @@ func TestValidateWatchSources(t *testing.T) {
 			},
 			Poll: "1s",
 		},
-		Kafka: KafkaConfig{
-			Brokers: []string{"localhost:9092"},
-			Topic:   "logs",
+		Sink: SinkConfig{
+			Type: "kafka",
+			Kafka: &KafkaConfig{
+				Brokers: []string{"localhost:9092"},
+				Topic:   "logs",
+			},
 		},
 		Transform: TransformConfig{
 			Type:    "tab",
@@ -107,6 +110,28 @@ func TestValidateMultilineParserRequiresStartPattern(t *testing.T) {
 
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected validation error when multiline start_pattern is missing")
+	}
+}
+
+func TestValidateFileSinkRequiresPath(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.Sink = SinkConfig{Type: "file", File: &FileSinkConfig{}}
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error when sink.file.path is missing")
+	}
+}
+
+func TestValidateHTTPNoauthSinkRequiresURL(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.Sink = SinkConfig{Type: "http-noauth", HTTPNoauth: &HTTPNoauthSinkConfig{}}
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error when sink.http_noauth.url is missing")
 	}
 }
 

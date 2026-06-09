@@ -6,18 +6,20 @@ watch:
   patterns:
     - "*.log"
 
-kafka:
-  brokers:
-    - kafka.example.com:9093
-  topic: logs
-  security:
-    protocol: SASL_SSL
-    tls:
-      ca_file: /etc/kafka/ca.crt
-    sasl:
-      mechanism: SCRAM-SHA-256
-      username: log-forwarder
-      password: ${KAFKA_PASSWORD}
+sink:
+  type: kafka
+  kafka:
+    brokers:
+      - kafka.example.com:9093
+    topic: logs
+    security:
+      protocol: SASL_SSL
+      tls:
+        ca_file: /etc/kafka/ca.crt
+      sasl:
+        mechanism: SCRAM-SHA-256
+        username: log-forwarder
+        password: ${KAFKA_PASSWORD}
 
 transform:
   type: delimiter

@@ -100,7 +100,7 @@ func TestValidateKafkaConnectTimeout(t *testing.T) {
 	t.Parallel()
 
 	cfg := Default()
-	cfg.Kafka.ConnectTimeout = "not-a-duration"
+	cfg.Sink.Kafka.ConnectTimeout = "not-a-duration"
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected validation error for invalid connect_timeout")
 	}

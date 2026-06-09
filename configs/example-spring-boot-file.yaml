@@ -1,0 +1,39 @@
+# Spring Boot default console log format with multiline stack traces.
+# Same parser/transform/enrichers as example-spring-boot-kafka.yaml, but writes JSONL locally.
+#
+# Run:
+#   ./bin/log-forwarder -config configs/example-spring-boot-file.yaml
+
+watch:
+  poll: 1s
+  sources:
+    - path: ./logs/spring-boot
+      patterns:
+        - "*.log"
+        - "*.log.*"
+        - "*.out"
+
+sink:
+  type: file
+  file:
+    path: ./output/spring-boot.jsonl
+
+parser:
+  type: multiline
+  start_pattern: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}'
+
+transform:
+  type: regex
+  pattern: '^(?s)(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\S+)\s+(?P<pid>\d+)\s+---\s+\[\s*(?P<thread>[^\]]+?)\s*\]\s+(?P<logger>\S+)\s+:\s+(?P<message>.*)$'
+  on_error: wrap
+
+enrichers:
+  - type: static
+    fields:
+      application_id: billing-service
+      environment: dev
+  - type: host
+
+pipeline:
+  buffer_size: 1024
+  on_full: block

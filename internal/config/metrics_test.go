@@ -79,10 +79,12 @@ watch:
     - ./logs
   patterns:
     - "*.log"
-kafka:
-  brokers:
-    - localhost:9092
-  topic: logs
+sink:
+  type: kafka
+  kafka:
+    brokers:
+      - localhost:9092
+    topic: logs
 transform:
   type: tab
   on_error: wrap

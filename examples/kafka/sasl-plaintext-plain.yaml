@@ -6,16 +6,18 @@ watch:
   patterns:
     - "*.log"
 
-kafka:
-  brokers:
-    - localhost:9092
-  topic: logs
-  security:
-    protocol: SASL_PLAINTEXT
-    sasl:
-      mechanism: PLAIN
-      username: log-forwarder
-      password: ${KAFKA_PASSWORD}
+sink:
+  type: kafka
+  kafka:
+    brokers:
+      - localhost:9092
+    topic: logs
+    security:
+      protocol: SASL_PLAINTEXT
+      sasl:
+        mechanism: PLAIN
+        username: log-forwarder
+        password: ${KAFKA_PASSWORD}
 
 transform:
   type: delimiter

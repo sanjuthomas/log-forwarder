@@ -1,0 +1,31 @@
+# HTTP sink for open (no-authentication) ingest endpoints.
+# For OAuth2 or API-key auth, use a custom sink or a future http-oauth2 built-in.
+watch:
+  poll: 1s
+  sources:
+    - path: ./logs/app
+      patterns:
+        - "*.log"
+
+sink:
+  type: http-noauth
+  http_noauth:
+    url: http://localhost:8081/ingest
+    method: POST
+    timeout: 10s
+
+transform:
+  type: delimiter
+  delimiter: "\t"
+  columns:
+    - timestamp
+    - level
+    - message
+  on_error: wrap
+
+enrichers:
+  - type: host
+
+pipeline:
+  buffer_size: 1024
+  on_full: block

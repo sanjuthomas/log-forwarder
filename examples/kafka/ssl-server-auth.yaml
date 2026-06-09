@@ -6,14 +6,16 @@ watch:
   patterns:
     - "*.log"
 
-kafka:
-  brokers:
-    - kafka.example.com:9093
-  topic: logs
-  security:
-    protocol: SSL
-    tls:
-      ca_file: /etc/kafka/ca.crt
+sink:
+  type: kafka
+  kafka:
+    brokers:
+      - kafka.example.com:9093
+    topic: logs
+    security:
+      protocol: SSL
+      tls:
+        ca_file: /etc/kafka/ca.crt
 
 transform:
   type: delimiter

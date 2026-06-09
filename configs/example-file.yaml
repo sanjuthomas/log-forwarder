@@ -1,19 +1,14 @@
-# Unencrypted Kafka (local development only).
 watch:
   poll: 1s
-  paths:
-    - ./logs/app
-  patterns:
-    - "*.log"
+  sources:
+    - path: ./logs/app
+      patterns:
+        - "*.log"
 
 sink:
-  type: kafka
-  kafka:
-    brokers:
-      - localhost:9092
-    topic: logs
-    security:
-      protocol: PLAINTEXT
+  type: file
+  file:
+    path: ./output/forwarded.jsonl
 
 transform:
   type: delimiter

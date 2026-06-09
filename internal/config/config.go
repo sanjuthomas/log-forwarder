@@ -11,7 +11,7 @@ import (
 
 type Config struct {
 	Watch      WatchConfig      `yaml:"watch"`
-	Kafka      KafkaConfig      `yaml:"kafka"`
+	Sink       SinkConfig       `yaml:"sink"`
 	Parser     ParserConfig     `yaml:"parser"`
 	Transform  TransformConfig  `yaml:"transform"`
 	Enrichers  []EnricherConfig `yaml:"enrichers"`
@@ -107,9 +107,12 @@ func Default() *Config {
 			Patterns: []string{"*.log*"},
 			Poll:     "1s",
 		},
-		Kafka: KafkaConfig{
-			Brokers: []string{"localhost:9092"},
-			Topic:   "logs",
+		Sink: SinkConfig{
+			Type: "kafka",
+			Kafka: &KafkaConfig{
+				Brokers: []string{"localhost:9092"},
+				Topic:   "logs",
+			},
 		},
 		Parser: ParserConfig{
 			Type: "line",
@@ -162,7 +165,7 @@ func (c *Config) Validate() error {
 	if _, err := time.ParseDuration(c.Watch.Poll); err != nil {
 		return fmt.Errorf("watch.poll: %w", err)
 	}
-	if err := c.Kafka.Validate(); err != nil {
+	if err := c.validateSink(); err != nil {
 		return err
 	}
 	if err := c.validateParser(); err != nil {

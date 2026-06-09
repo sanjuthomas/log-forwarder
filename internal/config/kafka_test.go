@@ -111,10 +111,10 @@ func TestLoadKafkaSecurityExample(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.Kafka.SecurityProtocol() != KafkaProtocolSASLSSL {
-		t.Fatalf("protocol = %q", cfg.Kafka.SecurityProtocol())
+	if cfg.Sink.Kafka.SecurityProtocol() != KafkaProtocolSASLSSL {
+		t.Fatalf("protocol = %q", cfg.Sink.Kafka.SecurityProtocol())
 	}
-	if cfg.Kafka.Security.SASL.Mechanism != KafkaSASLSCRAMSHA512 {
-		t.Fatalf("mechanism = %q", cfg.Kafka.Security.SASL.Mechanism)
+	if cfg.Sink.Kafka.Security.SASL.Mechanism != KafkaSASLSCRAMSHA512 {
+		t.Fatalf("mechanism = %q", cfg.Sink.Kafka.Security.SASL.Mechanism)
 	}
 }

@@ -23,35 +23,37 @@ go build -o bin/log-forwarder ./cmd/log-forwarder
 
 ## Config shape
 
-All secured configs use the same `kafka.security` block:
+All secured configs use the same `sink.kafka.security` block:
 
 ```yaml
-kafka:
-  brokers:
-    - kafka.example.com:9093
-  topic: logs
-  security:
-    protocol: SASL_SSL          # PLAINTEXT | SSL | SASL_PLAINTEXT | SASL_SSL
-    tls:
-      ca_file: /etc/kafka/ca.crt
-      cert_file: /etc/kafka/client.crt   # optional — mTLS
-      key_file: /etc/kafka/client.key    # optional — mTLS
-      insecure_skip_verify: false        # dev only
-    sasl:
-      mechanism: SCRAM-SHA-512           # PLAIN | SCRAM-SHA-256 | SCRAM-SHA-512 | GSSAPI | OAUTHBEARER
-      username: log-forwarder
-      password: secret
-      kerberos:                          # GSSAPI only
-        service_name: kafka
-        realm: EXAMPLE.COM
-        principal: log-forwarder/host@EXAMPLE.COM
-        keytab: /etc/kafka/log-forwarder.keytab
-        config_path: /etc/krb5.conf
-      oauth:                             # OAUTHBEARER only
-        token: eyJhbG...
+sink:
+  type: kafka
+  kafka:
+    brokers:
+      - kafka.example.com:9093
+    topic: logs
+    security:
+      protocol: SASL_SSL          # PLAINTEXT | SSL | SASL_PLAINTEXT | SASL_SSL
+      tls:
+        ca_file: /etc/kafka/ca.crt
+        cert_file: /etc/kafka/client.crt   # optional — mTLS
+        key_file: /etc/kafka/client.key    # optional — mTLS
+        insecure_skip_verify: false        # dev only
+      sasl:
+        mechanism: SCRAM-SHA-512           # PLAIN | SCRAM-SHA-256 | SCRAM-SHA-512 | GSSAPI | OAUTHBEARER
+        username: log-forwarder
+        password: secret
+        kerberos:                          # GSSAPI only
+          service_name: kafka
+          realm: EXAMPLE.COM
+          principal: log-forwarder/host@EXAMPLE.COM
+          keytab: /etc/kafka/log-forwarder.keytab
+          config_path: /etc/krb5.conf
+        oauth:                             # OAUTHBEARER only
+          token: eyJhbG...
 ```
 
-Omit `kafka.security` entirely to use plaintext (same as `protocol: PLAINTEXT`).
+Omit `sink.kafka.security` entirely to use plaintext (same as `protocol: PLAINTEXT`).
 
 ## Implementation status
 
