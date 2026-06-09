@@ -37,7 +37,7 @@ Stack (`docker-compose.kafka.yaml`):
 
 Config: `configs/example-docker-kafka.yaml` (PLAINTEXT broker `kafka:9092`).
 
-CI: run the **Kafka smoke** workflow manually from GitHub Actions (`workflow_dispatch`).
+CI: **Kafka smoke** runs on every pull request to `main` and is required before merge.
 
 ## Pull and run
 
