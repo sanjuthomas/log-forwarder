@@ -99,7 +99,7 @@ func TestMetricsServerExposesApplicationMetrics(t *testing.T) {
 	collector.RecordLineBufferDropped(context.Background())
 	collector.RecordPublishFailure(context.Background())
 	collector.RecordPublishRetry(context.Background())
-	collector.RecordKafkaPublishDuration(context.Background(), 250000000) // 250ms
+	collector.RecordPublishDuration(context.Background(), 250000000) // 250ms
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
@@ -126,9 +126,9 @@ func TestMetricsServerExposesApplicationMetrics(t *testing.T) {
 				"log_forwarder_lines_read",
 				"log_forwarder_lines_published",
 				"log_forwarder_pipeline_buffer_dropped",
-				"log_forwarder_kafka_publish_failures",
-				"log_forwarder_kafka_publish_retries",
-				"log_forwarder_kafka_publish_duration",
+				"log_forwarder_publish_failures",
+				"log_forwarder_publish_retries",
+				"log_forwarder_publish_duration",
 			} {
 				if !strings.Contains(metricsBody, want) {
 					t.Fatalf("metrics body missing %q", want)

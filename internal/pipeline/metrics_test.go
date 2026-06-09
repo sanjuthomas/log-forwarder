@@ -94,7 +94,7 @@ func TestPipelineRecordsPublishMetrics(t *testing.T) {
 	if !strings.Contains(body, "log_forwarder_lines_published") {
 		t.Fatalf("metrics missing published counter: %s", body)
 	}
-	if !strings.Contains(body, "log_forwarder_kafka_publish_duration") {
+	if !strings.Contains(body, "log_forwarder_publish_duration") {
 		t.Fatalf("metrics missing publish duration histogram: %s", body)
 	}
 }
