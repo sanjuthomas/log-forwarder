@@ -1,0 +1,11 @@
+.git
+.github
+bin/
+output/
+docker/output/
+.log-forwarder/
+*.log
+.DS_Store
+docs/
+README.md
+LICENSE

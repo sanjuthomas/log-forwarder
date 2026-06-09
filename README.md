@@ -994,9 +994,20 @@ curl -s http://127.0.0.1:8080/metrics | grep log_forwarder_pipeline_buffer
 
 For a single-host deployment, combining Prometheus alerts on publish failures and buffer depth with `status_interval` logs and a systemd `Restart=on-failure` policy gives solid baseline coverage.
 
+## Docker
+
+Container images for sidecar and standalone deployments are published to [Docker Hub](https://hub.docker.com/r/sanjuthomas/log-forwarder) (`linux/amd64`, `linux/arm64`).
+
+```bash
+docker compose up --build          # local smoke test
+docker pull sanjuthomas/log-forwarder:latest
+```
+
+See [docs/docker.md](docs/docker.md) for volume mounts, Kubernetes sidecar notes, and maintainer publish steps.
+
 ## Deployment
 
-There is no packaged deployment artifact in this repository. A typical production setup:
+Binary install on the host is still supported. A typical production setup:
 
 1. Cross-compile the binary for the target OS/arch.
 2. Install the binary and config on the host (e.g. `/opt/log-forwarder/`).
@@ -1028,6 +1039,9 @@ For custom transformers or enrichers, deploy the binary built from your own entr
 ```
 cmd/log-forwarder/     Main entrypoint (built-in transformers/enrichers only)
 configs/               Example and local config files
+docker/                Sample log data for docker compose
+Dockerfile             Multi-stage image (distroless runtime)
+docker-compose.yaml    Local container smoke test
 examples/custom/       Custom binary with registered extensions
 internal/
   config/              YAML loading and validation

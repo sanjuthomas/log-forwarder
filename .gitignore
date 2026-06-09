@@ -1,5 +1,7 @@
 bin/
 *.log
+!docker/sample-data/*.log
 .DS_Store
 output/
+docker/output/
 .log-forwarder/

@@ -1,0 +1,64 @@
+# Sidecar / container example — absolute paths for volume mounts.
+#
+# Typical mounts:
+#   /var/log/app:ro     application logs (read-only)
+#   /config/config.yaml application config (read-only)
+#   /state              watermark directory (read-write)
+#
+# Local smoke test:
+#   docker compose up --build
+#
+# Image:
+#   docker run --rm \
+#     -v "$(pwd)/docker/sample-data:/var/log/app:ro" \
+#     -v "$(pwd)/configs/example-docker-sidecar.yaml:/config/config.yaml:ro" \
+#     -v log-forwarder-state:/state \
+#     -p 8080:8080 \
+#     sanjuthomas/log-forwarder:latest
+
+watch:
+  poll: 1s
+  sources:
+    - path: /var/log/app
+      patterns:
+        - "*.log"
+        - "*.log.*"
+        - "*.out"
+  state:
+    path: /state/watermarks.json
+
+sink:
+  type: file
+  file:
+    path: /output/records.jsonl
+
+parser:
+  type: multiline
+  start_pattern: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}'
+
+transform:
+  type: regex
+  pattern: '^(?s)(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\S+)\s+(?P<pid>\d+)\s+---\s+\[\s*(?P<thread>[^\]]+?)\s*\]\s+(?P<logger>\S+)\s+:\s+(?P<message>.*)$'
+  on_error: wrap
+
+enrichers:
+  - type: static
+    fields:
+      application_id: billing-service
+      environment: docker
+  - type: host
+
+pipeline:
+  buffer_size: 1024
+  on_full: block
+
+metrics:
+  enabled: true
+  host: 0.0.0.0
+  port: 8080
+  path: /metrics
+
+logging:
+  level: info
+  format: json
+  status_interval: 30s

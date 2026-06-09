@@ -1,0 +1,135 @@
+# Docker
+
+Run log-forwarder as a container — useful as a **sidecar** next to an application pod or service.
+
+**Image:** [`sanjuthomas/log-forwarder`](https://hub.docker.com/r/sanjuthomas/log-forwarder) on Docker Hub (linux/amd64 and linux/arm64).
+
+## Quick start (local)
+
+```bash
+docker compose up --build
+```
+
+Then:
+
+```bash
+curl -sf http://127.0.0.1:18080/health
+cat docker/output/records.jsonl
+```
+
+Append a line to `docker/sample-data/app.log` and confirm a new JSONL record appears.
+
+## Pull and run
+
+```bash
+docker pull sanjuthomas/log-forwarder:latest
+
+docker run --rm \
+  -v /path/to/app/logs:/var/log/app:ro \
+  -v /path/to/config.yaml:/config/config.yaml:ro \
+  -v log-forwarder-state:/state \
+  -p 8080:8080 \
+  sanjuthomas/log-forwarder:latest
+```
+
+Use `configs/example-docker-sidecar.yaml` as a starting point — paths are absolute for container mounts.
+
+## Volume layout (sidecar)
+
+| Mount | Mode | Purpose |
+|-------|------|---------|
+| `/var/log/app` | ro | Application log directory |
+| `/config/config.yaml` | ro | Forwarder YAML config |
+| `/state` | rw | Watermark file (`watch.state.path`) |
+| `/output` | rw | Only if using `sink.type: file` |
+
+Keep the watermark directory **outside** watched log paths (validated at startup).
+
+## Kubernetes sidecar (sketch)
+
+```yaml
+containers:
+  - name: app
+  # ... your application ...
+
+  - name: log-forwarder
+    image: sanjuthomas/log-forwarder:1.0.0
+    args: ["-config", "/config/config.yaml"]
+    volumeMounts:
+      - name: app-logs
+        mountPath: /var/log/app
+        readOnly: true
+      - name: forwarder-config
+        mountPath: /config
+        readOnly: true
+      - name: forwarder-state
+        mountPath: /state
+    ports:
+      - name: metrics
+        containerPort: 8080
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: metrics
+      initialDelaySeconds: 5
+      periodSeconds: 30
+```
+
+Share an `emptyDir` (or hostPath) between app and sidecar for logs. Point `sink.kafka.brokers` or `sink.http_noauth.url` at cluster-accessible destinations.
+
+Set `metrics.host: 0.0.0.0` in config so probes and Prometheus can reach the container.
+
+## Build the image locally
+
+```bash
+docker build -t sanjuthomas/log-forwarder:local .
+```
+
+Multi-arch build (requires buildx):
+
+```bash
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t sanjuthomas/log-forwarder:local \
+  --load .
+```
+
+## Publish to Docker Hub (maintainers)
+
+1. Create a Docker Hub access token for the `sanjuthomas` account (or your org).
+2. Add GitHub repository secrets:
+   - `DOCKERHUB_USERNAME`
+   - `DOCKERHUB_TOKEN`
+3. Push a version tag:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The `Docker` workflow builds multi-arch images and pushes:
+
+- `sanjuthomas/log-forwarder:v0.1.0`
+- `sanjuthomas/log-forwarder:latest`
+
+You can also run the workflow manually from the Actions tab (**workflow_dispatch**).
+
+## Custom extensions
+
+The published image is built from `cmd/log-forwarder` (built-in parsers, transformers, enrichers, sinks only). For custom `sink.Register` / `transform.Register` code, build your own image:
+
+```dockerfile
+FROM golang:1.22-alpine AS build
+WORKDIR /src
+COPY . .
+RUN CGO_ENABLED=0 go build -o /out/log-forwarder ./examples/custom
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/log-forwarder /usr/local/bin/log-forwarder
+USER nonroot:nonroot
+ENTRYPOINT ["/usr/local/bin/log-forwarder"]
+```
+
+## Mac and Linux
+
+Docker Desktop on Mac runs Linux containers. Multi-arch images (`amd64` + `arm64`) work on Intel Macs, Apple Silicon, and Linux hosts without extra configuration.

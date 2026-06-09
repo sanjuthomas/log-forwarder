@@ -1,0 +1,2 @@
+2026-06-08 10:16:22.901  INFO 18432 --- [main] com.example.App : docker compose smoke test
+2026-06-08 10:16:23.901  INFO 18432 --- [main] com.example.App : second line for tailing

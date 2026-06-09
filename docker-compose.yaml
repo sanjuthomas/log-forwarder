@@ -1,0 +1,16 @@
+services:
+  log-forwarder:
+    build: .
+    image: sanjuthomas/log-forwarder:local
+    command: ["-config", "/config/config.yaml"]
+    volumes:
+      - ./docker/sample-data:/var/log/app:ro
+      - ./configs/example-docker-sidecar.yaml:/config/config.yaml:ro
+      - log-forwarder-state:/state
+      - ./docker/output:/output
+    ports:
+      - "18080:8080"
+    restart: unless-stopped
+
+volumes:
+  log-forwarder-state:
