@@ -72,11 +72,6 @@ type EnricherConfig struct {
 	Fields map[string]string `yaml:"fields"`
 }
 
-type PipelineConfig struct {
-	BufferSize int    `yaml:"buffer_size"`
-	OnFull     string `yaml:"on_full"`
-}
-
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -182,13 +177,8 @@ func (c *Config) Validate() error {
 	default:
 		return fmt.Errorf("transform.on_error must be skip or wrap")
 	}
-	if c.Pipeline.BufferSize <= 0 {
-		return fmt.Errorf("pipeline.buffer_size must be positive")
-	}
-	switch c.Pipeline.OnFull {
-	case "block", "drop":
-	default:
-		return fmt.Errorf("pipeline.on_full must be block or drop")
+	if err := c.validatePipeline(); err != nil {
+		return err
 	}
 	if err := c.validateLogging(); err != nil {
 		return err

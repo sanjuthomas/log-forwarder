@@ -139,17 +139,43 @@ func (p *Pipeline) process(ctx context.Context, event parser.Event) error {
 }
 
 func (p *Pipeline) publishWithRetry(ctx context.Context, payload []byte) error {
-	backoff := time.Second
+	retry := p.cfg.Pipeline.PublishRetry
+	backoff := retry.InitialBackoffDuration()
+	maxBackoff := retry.MaxBackoffDuration()
+	maxAttempts := retry.MaxAttempts
+	publishTimeout := p.cfg.Pipeline.PublishTimeoutDuration()
+
+	attempt := 0
 	for {
+		attempt++
+
+		publishCtx := ctx
+		var cancel context.CancelFunc
+		if publishTimeout > 0 {
+			publishCtx, cancel = context.WithTimeout(ctx, publishTimeout)
+		}
+
 		start := time.Now()
-		err := p.sink.Publish(ctx, payload)
+		err := p.sink.Publish(publishCtx, payload)
+		if cancel != nil {
+			cancel()
+		}
 		p.metrics.RecordKafkaPublishDuration(ctx, time.Since(start))
 		if err == nil {
 			return nil
 		}
 
 		p.metrics.RecordPublishFailure(ctx)
-		p.logger.Warn("publish failed, retrying", "error", err, "retry_in", backoff)
+
+		if maxAttempts > 0 && attempt >= maxAttempts {
+			return fmt.Errorf("publish failed after %d attempts: %w", attempt, err)
+		}
+
+		p.logger.Warn("publish failed, retrying",
+			"error", err,
+			"attempt", attempt,
+			"retry_in", backoff,
+		)
 
 		select {
 		case <-ctx.Done():
@@ -158,8 +184,11 @@ func (p *Pipeline) publishWithRetry(ctx context.Context, payload []byte) error {
 			p.metrics.RecordPublishRetry(ctx)
 		}
 
-		if backoff < 30*time.Second {
+		if backoff < maxBackoff {
 			backoff *= 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
 		}
 	}
 }

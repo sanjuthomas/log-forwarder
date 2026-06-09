@@ -396,6 +396,25 @@ enrichers:
 |-------|-------------|
 | `buffer_size` | Buffered channel size between watcher and pipeline (default `1024`) |
 | `on_full` | `block` (default) — backpressure when the buffer is full |
+| `publish_timeout` | Per-attempt timeout for `sink.Publish` (default `0` = no limit). Applies to all sink types. |
+| `publish_retry.initial_backoff` | Delay before the first retry (default `1s`) |
+| `publish_retry.max_backoff` | Maximum delay between retries (default `30s`) |
+| `publish_retry.max_attempts` | Give up after this many attempts (`0` = retry until shutdown, default) |
+
+When a publish fails, the pipeline retries with exponential backoff (doubling delay up to `max_backoff`). Watermarks are not advanced until publish succeeds.
+
+```yaml
+pipeline:
+  buffer_size: 1024
+  on_full: block
+  publish_timeout: 30s
+  publish_retry:
+    initial_backoff: 1s
+    max_backoff: 30s
+    max_attempts: 0
+```
+
+Sink-specific timeouts still apply where configured (for example `sink.http_noauth.timeout` for each HTTP round trip, `sink.kafka.connect_timeout` for startup checks).
 
 ### `metrics`
 
