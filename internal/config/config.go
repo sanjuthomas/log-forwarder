@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -11,6 +12,7 @@ import (
 type Config struct {
 	Watch      WatchConfig      `yaml:"watch"`
 	Kafka      KafkaConfig      `yaml:"kafka"`
+	Parser     ParserConfig     `yaml:"parser"`
 	Transform  TransformConfig  `yaml:"transform"`
 	Enrichers  []EnricherConfig `yaml:"enrichers"`
 	Pipeline   PipelineConfig   `yaml:"pipeline"`
@@ -50,6 +52,11 @@ func (c WatchConfig) Entries() []WatchSource {
 		})
 	}
 	return entries
+}
+
+type ParserConfig struct {
+	Type          string `yaml:"type"`
+	StartPattern  string `yaml:"start_pattern"`
 }
 
 type TransformConfig struct {
@@ -104,6 +111,9 @@ func Default() *Config {
 			Brokers: []string{"localhost:9092"},
 			Topic:   "logs",
 		},
+		Parser: ParserConfig{
+			Type: "line",
+		},
 		Transform: TransformConfig{
 			Type:      "delimiter",
 			Delimiter: "\t",
@@ -155,6 +165,9 @@ func (c *Config) Validate() error {
 	if err := c.Kafka.Validate(); err != nil {
 		return err
 	}
+	if err := c.validateParser(); err != nil {
+		return err
+	}
 	if c.Transform.Type == "" {
 		return fmt.Errorf("transform.type must not be empty")
 	}
@@ -186,4 +199,25 @@ func (c *Config) Validate() error {
 func (c *Config) PollInterval() time.Duration {
 	d, _ := time.ParseDuration(c.Watch.Poll)
 	return d
+}
+
+func (c *Config) validateParser() error {
+	parserType := c.Parser.Type
+	if parserType == "" {
+		parserType = "line"
+	}
+	switch parserType {
+	case "line", "multiline":
+	default:
+		return fmt.Errorf("parser.type must be line or multiline")
+	}
+	if parserType == "multiline" {
+		if c.Parser.StartPattern == "" {
+			return fmt.Errorf("parser.start_pattern is required when parser.type is multiline")
+		}
+		if _, err := regexp.Compile(c.Parser.StartPattern); err != nil {
+			return fmt.Errorf("parser.start_pattern: %w", err)
+		}
+	}
+	return nil
 }

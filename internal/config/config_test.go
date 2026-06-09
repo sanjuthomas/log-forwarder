@@ -98,3 +98,28 @@ func TestValidateRegexRequiresPattern(t *testing.T) {
 		t.Fatal("expected validation error when regex pattern is missing")
 	}
 }
+
+func TestValidateMultilineParserRequiresStartPattern(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.Parser = ParserConfig{Type: "multiline"}
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error when multiline start_pattern is missing")
+	}
+}
+
+func TestValidateMultilineParserRejectsInvalidStartPattern(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.Parser = ParserConfig{
+		Type:         "multiline",
+		StartPattern: `(?P<bad`,
+	}
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error for invalid start_pattern")
+	}
+}

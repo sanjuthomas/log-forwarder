@@ -150,3 +150,51 @@ func TestPipelineRecordsSkippedLineMetrics(t *testing.T) {
 		t.Fatalf("metrics missing transform error counter: %s", body)
 	}
 }
+
+func TestPipelineMultilineParserPublishesOneRecord(t *testing.T) {
+	cfg := config.Default()
+	cfg.Parser = config.ParserConfig{
+		Type:         "multiline",
+		StartPattern: `^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`,
+	}
+	cfg.Transform = config.TransformConfig{
+		Type:    "regex",
+		Pattern: `^(?s)(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\S+)\s+(?P<pid>\d+)\s+---\s+\[\s*(?P<thread>[^\]]+?)\s*\]\s+(?P<logger>\S+)\s+:\s+(?P<message>.*)$`,
+		OnError: "wrap",
+	}
+
+	sink := &fakeSink{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pipe, err := New(cfg, sink, logger, Options{})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	lines := make(chan watcher.LineEvent, 4)
+	lines <- watcher.LineEvent{
+		Path:   "/tmp/test.log",
+		Line:   []byte("2026-06-08 10:16:22.901  ERROR 18432 --- [main] c.a.b.PaymentController : Payment failed"),
+		Offset: 100,
+		Inode:  1,
+	}
+	lines <- watcher.LineEvent{
+		Path:   "/tmp/test.log",
+		Line:   []byte("org.springframework.dao.DataIntegrityViolationException: could not execute statement"),
+		Offset: 180,
+		Inode:  1,
+	}
+	lines <- watcher.LineEvent{
+		Path:   "/tmp/test.log",
+		Line:   []byte("        at com.acme.billing.controller.PaymentController.processPayment(PaymentController.java:87)"),
+		Offset: 260,
+		Inode:  1,
+	}
+	close(lines)
+
+	if err := pipe.Run(context.Background(), lines); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if sink.publishCalls != 1 {
+		t.Fatalf("publishCalls = %d, want 1", sink.publishCalls)
+	}
+}

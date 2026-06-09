@@ -10,10 +10,11 @@ flowchart LR
 
     subgraph host["Forwarder host"]
         watcher["Watcher\ntail · rotate"]
+        parser["Parser\nline · multiline"]
         transform["Transform\ndelimiter / regex"]
         enrich["Enrich\nhost · static · …"]
         sink["Kafka sink\nJSON records"]
-        watcher --> transform --> enrich --> sink
+        watcher --> parser --> transform --> enrich --> sink
     end
 
     subgraph network["Network"]
@@ -164,6 +165,30 @@ Supported SASL mechanisms: `PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `OAUTHBEAR
 
 **Example configs for every security mode:** [`examples/kafka/`](examples/kafka/)
 
+### `parser`
+
+Groups physical log lines into logical records before transformation.
+
+| Field | Description |
+|-------|-------------|
+| `type` | `line` (default) or `multiline` |
+| `start_pattern` | For `multiline`: regex that marks the first line of a new record (required) |
+
+**Line parser** (default) — one physical line becomes one record:
+
+```yaml
+parser:
+  type: line
+```
+
+**Multiline parser** — continuation lines are buffered until the next line matching `start_pattern`. Use for stack traces and other multi-line log events ([`configs/example-spring-boot.yaml`](configs/example-spring-boot.yaml)):
+
+```yaml
+parser:
+  type: multiline
+  start_pattern: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}'
+```
+
 ### `transform`
 
 Choose a parsing strategy with `type`:
@@ -207,9 +232,13 @@ transform:
 **Spring Boot default console format** ([`configs/example-spring-boot.yaml`](configs/example-spring-boot.yaml)):
 
 ```yaml
+parser:
+  type: multiline
+  start_pattern: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}'
+
 transform:
   type: regex
-  pattern: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\S+)\s+(?P<pid>\d+)\s+---\s+\[\s*(?P<thread>[^\]]+?)\s*\]\s+(?P<logger>\S+)\s+:\s+(?P<message>.*)$'
+  pattern: '^(?s)(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\S+)\s+(?P<pid>\d+)\s+---\s+\[\s*(?P<thread>[^\]]+?)\s*\]\s+(?P<logger>\S+)\s+:\s+(?P<message>.*)$'
   on_error: wrap
 ```
 
@@ -352,6 +381,16 @@ When a line cannot be parsed:
 
 Every successfully parsed record also includes `_path` (source file path).
 
+## Built-in parsers
+
+### `line`
+
+Default. Each physical line from the watcher becomes one record for the transformer.
+
+### `multiline`
+
+Buffers lines until the next line matches `start_pattern`, then emits the joined record (newline-separated). Incomplete buffers are flushed on shutdown.
+
 ## Built-in enrichers
 
 ### `static`
@@ -364,7 +403,7 @@ Adds `hostname` (from `os.Hostname()`, or `"unknown"` on failure).
 
 ## Custom extensions
 
-Built-in transformers and enrichers are registered in package `init()` functions. To add your own, register factories and build a **custom binary** — the default `./cmd/log-forwarder` entrypoint only includes built-ins.
+Built-in parsers, transformers, and enrichers are registered in package `init()` functions. To add your own, register factories and build a **custom binary** — the default `./cmd/log-forwarder` entrypoint only includes built-ins.
 
 The full working example lives in [`examples/custom/main.go`](examples/custom/main.go).
 
@@ -426,6 +465,34 @@ transform:
 ```
 
 The factory receives the full `TransformConfig`, so custom transformers can read `columns`, `pattern`, and `on_error` like built-ins.
+
+### Custom parser
+
+1. Implement the `parser.Parser` interface:
+
+```go
+type Parser interface {
+    Feed(event watcher.LineEvent) ([]parser.Event, error)
+    Flush() ([]parser.Event, error)
+}
+```
+
+2. Register a factory in `init()`:
+
+```go
+func init() {
+    parser.Register("my_parser", func(cfg config.ParserConfig) (parser.Parser, error) {
+        return &myParser{}, nil
+    })
+}
+```
+
+3. Reference the type in config:
+
+```yaml
+parser:
+  type: my_parser
+```
 
 ### Custom enricher
 

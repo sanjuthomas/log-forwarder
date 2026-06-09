@@ -10,6 +10,7 @@ import (
 	"github.com/sanjuthomas/log-forwarder/internal/config"
 	"github.com/sanjuthomas/log-forwarder/internal/enrich"
 	"github.com/sanjuthomas/log-forwarder/internal/metrics"
+	"github.com/sanjuthomas/log-forwarder/internal/parser"
 	"github.com/sanjuthomas/log-forwarder/internal/sink"
 	"github.com/sanjuthomas/log-forwarder/internal/state"
 	"github.com/sanjuthomas/log-forwarder/internal/transform"
@@ -19,6 +20,7 @@ import (
 // Pipeline processes log lines through transform, enrich, and publish stages.
 type Pipeline struct {
 	cfg         *config.Config
+	parser      parser.Parser
 	transformer transform.Transformer
 	enrichers   []enrich.Enricher
 	sink        sink.Sink
@@ -33,6 +35,10 @@ type Options struct {
 }
 
 func New(cfg *config.Config, s sink.Sink, logger *slog.Logger, opts Options) (*Pipeline, error) {
+	p, err := parser.New(cfg.Parser)
+	if err != nil {
+		return nil, err
+	}
 	t, err := transform.New(cfg.Transform)
 	if err != nil {
 		return nil, err
@@ -43,6 +49,7 @@ func New(cfg *config.Config, s sink.Sink, logger *slog.Logger, opts Options) (*P
 	}
 	return &Pipeline{
 		cfg:         cfg,
+		parser:      p,
 		transformer: t,
 		enrichers:   chain,
 		sink:        s,
@@ -56,20 +63,39 @@ func (p *Pipeline) Run(ctx context.Context, lines <-chan watcher.LineEvent) erro
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return p.flush(ctx)
 		case event, ok := <-lines:
 			if !ok {
-				return nil
+				return p.flush(ctx)
 			}
-			if err := p.process(ctx, event); err != nil {
+			records, err := p.parser.Feed(event)
+			if err != nil {
 				return err
+			}
+			for _, record := range records {
+				if err := p.process(ctx, record); err != nil {
+					return err
+				}
 			}
 		}
 	}
 }
 
-func (p *Pipeline) process(ctx context.Context, event watcher.LineEvent) error {
-	record, err := p.transformer.Transform(event.Line)
+func (p *Pipeline) flush(ctx context.Context) error {
+	records, err := p.parser.Flush()
+	if err != nil {
+		return err
+	}
+	for _, record := range records {
+		if err := p.process(ctx, record); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *Pipeline) process(ctx context.Context, event parser.Event) error {
+	record, err := p.transformer.Transform(event.Data)
 	skipPublish := false
 	if err != nil {
 		p.metrics.RecordTransformError(ctx)
@@ -80,7 +106,7 @@ func (p *Pipeline) process(ctx context.Context, event watcher.LineEvent) error {
 			p.metrics.RecordLineSkipped(ctx)
 		case "wrap":
 			record = transform.Record{
-				"_raw":   string(event.Line),
+				"_raw":   string(event.Data),
 				"_path":  event.Path,
 				"_error": err.Error(),
 			}

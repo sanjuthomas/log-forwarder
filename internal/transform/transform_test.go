@@ -229,7 +229,7 @@ func TestRegexTransformerSpringBootDefault(t *testing.T) {
 
 	tr, err := New(config.TransformConfig{
 		Type:    "regex",
-		Pattern: `^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\S+)\s+(?P<pid>\d+)\s+---\s+\[\s*(?P<thread>[^\]]+?)\s*\]\s+(?P<logger>\S+)\s+:\s+(?P<message>.*)$`,
+		Pattern: `^(?s)(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\S+)\s+(?P<pid>\d+)\s+---\s+\[\s*(?P<thread>[^\]]+?)\s*\]\s+(?P<logger>\S+)\s+:\s+(?P<message>.*)$`,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -258,6 +258,41 @@ func TestRegexTransformerSpringBootDefault(t *testing.T) {
 	}
 	if record["message"] != "Starting BillingApplication v1.4.2 using Java 17.0.10" {
 		t.Fatalf("message = %v", record["message"])
+	}
+}
+
+func TestRegexTransformerSpringBootMultilineMessage(t *testing.T) {
+	t.Parallel()
+
+	tr, err := New(config.TransformConfig{
+		Type:    "regex",
+		Pattern: `^(?s)(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\S+)\s+(?P<pid>\d+)\s+---\s+\[\s*(?P<thread>[^\]]+?)\s*\]\s+(?P<logger>\S+)\s+:\s+(?P<message>.*)$`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	line := "2026-06-08 10:16:22.901  ERROR 18432 --- [nio-8080-exec-5] c.a.b.controller.PaymentController       : Payment failed\norg.springframework.dao.DataIntegrityViolationException: could not execute statement\n\tat com.acme.billing.controller.PaymentController.processPayment(PaymentController.java:87)"
+	record, err := tr.Transform([]byte(line))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if record["level"] != "ERROR" {
+		t.Fatalf("level = %v", record["level"])
+	}
+	msg, ok := record["message"].(string)
+	if !ok {
+		t.Fatalf("message type = %T", record["message"])
+	}
+	if !strings.Contains(msg, "Payment failed") {
+		t.Fatalf("message = %q", msg)
+	}
+	if !strings.Contains(msg, "DataIntegrityViolationException") {
+		t.Fatalf("message = %q", msg)
+	}
+	if !strings.Contains(msg, "processPayment") {
+		t.Fatalf("message = %q", msg)
 	}
 }
 
