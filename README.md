@@ -939,7 +939,7 @@ metrics:
     sink_check_timeout: 5s
 ```
 
-Pair readiness with Prometheus alerts on `log_forwarder_kafka_publish_failures` and `log_forwarder_pipeline_buffer_depth` for sustained sink or backlog issues.
+Pair readiness with Prometheus alerts on `log_forwarder_publish_failures` and `log_forwarder_pipeline_buffer_depth` for sustained sink or backlog issues.
 
 ### 4. Log-based status
 
@@ -975,9 +975,9 @@ Other useful log lines:
 | `log_forwarder_lines_skipped` | Lines dropped (`transform.on_error: skip`) |
 | `log_forwarder_pipeline_buffer_dropped` | Lines dropped when `pipeline.on_full: drop` and buffer is full |
 | `log_forwarder_transform_errors` | Transform failures |
-| `log_forwarder_kafka_publish_failures` | Failed sink publish attempts |
-| `log_forwarder_kafka_publish_retries` | Retries after a publish failure |
-| `log_forwarder_kafka_publish_duration` | Sink publish latency (histogram, seconds) |
+| `log_forwarder_publish_failures` | Failed sink publish attempts |
+| `log_forwarder_publish_retries` | Retries after a publish failure |
+| `log_forwarder_publish_duration` | Sink publish latency (histogram, seconds) |
 | `log_forwarder_files_watched` | Files currently being tailed |
 | `log_forwarder_pipeline_buffer_depth` | Events queued between watcher and pipeline |
 | `log_forwarder_pipeline_buffer_capacity` | Configured `pipeline.buffer_size` |
@@ -997,9 +997,9 @@ Other useful log lines:
 
 | Signal | Suggested condition | Likely cause |
 |--------|---------------------|--------------|
-| Publish failures | `rate(log_forwarder_kafka_publish_failures[5m]) > 0` sustained | Sink unreachable, auth/TLS issue, or network partition |
-| Publish retries | `rate(log_forwarder_kafka_publish_retries[5m])` rising | Intermittent sink or timeout pressure |
-| Publish latency | `histogram_quantile(0.95, rate(log_forwarder_kafka_publish_duration_bucket[5m]))` high | Sink load, network latency, or slow endpoint |
+| Publish failures | `rate(log_forwarder_publish_failures[5m]) > 0` sustained | Sink unreachable, auth/TLS issue, or network partition |
+| Publish retries | `rate(log_forwarder_publish_retries[5m])` rising | Intermittent sink or timeout pressure |
+| Publish latency | `histogram_quantile(0.95, rate(log_forwarder_publish_duration_bucket[5m]))` high | Sink load, network latency, or slow endpoint |
 | Buffer backlog | `log_forwarder_pipeline_buffer_depth / log_forwarder_pipeline_buffer_capacity > 0.8` sustained | Pipeline slower than ingest; risk of backpressure |
 | No files watched | `log_forwarder_files_watched == 0` while logs are expected | Wrong watch paths, patterns, or permissions |
 | Read/publish gap | `rate(log_forwarder_lines_read[5m])` >> `rate(log_forwarder_lines_published[5m])` | Transform skips, persistent publish failures, or pipeline stall |

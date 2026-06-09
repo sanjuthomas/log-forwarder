@@ -59,7 +59,7 @@ B. Sink failure behavior
 Kafka down after startup:
 
   - Start forwarder, then stop Kafka.
-  - Expect: publish failed, retrying, metrics log_forwarder_kafka_publish_failures /
+  - Expect: publish failed, retrying, metrics log_forwarder_publish_failures /
     _retries rise, watermark does not advance for stuck records.
   - Bring Kafka back -> publishing should resume; no duplicate lines for already-watermarked offsets.
 
@@ -128,7 +128,7 @@ Observability & alerts
 
 Enable metrics and alert on:
 
-  - rate(log_forwarder_kafka_publish_failures[5m]) > 0 (sustained)
+  - rate(log_forwarder_publish_failures[5m]) > 0 (sustained)
   - log_forwarder_pipeline_buffer_depth / capacity > 0.8 (sustained)
   - log_forwarder_files_watched == 0 when logs expected
   - up == 0 on scrape target

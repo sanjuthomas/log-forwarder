@@ -35,7 +35,7 @@ type Collector struct {
 	transformErrors      metric.Int64Counter
 	publishFailures      metric.Int64Counter
 	publishRetries       metric.Int64Counter
-	kafkaPublishDuration metric.Float64Histogram
+	publishDuration      metric.Float64Histogram
 
 	provider *sdkmetric.MeterProvider
 	server   *http.Server
@@ -152,7 +152,7 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 
 	linesPublished, err := meter.Int64Counter(
 		"log_forwarder.lines.published",
-		metric.WithDescription("Total number of log lines published to Kafka."),
+		metric.WithDescription("Total number of log lines published to the configured sink."),
 		metric.WithUnit("{line}"),
 	)
 	if err != nil {
@@ -187,8 +187,8 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 	}
 
 	publishFailures, err := meter.Int64Counter(
-		"log_forwarder.kafka.publish.failures",
-		metric.WithDescription("Total number of failed Kafka publish attempts."),
+		"log_forwarder.publish.failures",
+		metric.WithDescription("Total number of failed sink publish attempts."),
 		metric.WithUnit("{attempt}"),
 	)
 	if err != nil {
@@ -196,17 +196,17 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 	}
 
 	publishRetries, err := meter.Int64Counter(
-		"log_forwarder.kafka.publish.retries",
-		metric.WithDescription("Total number of Kafka publish retries after a failure."),
+		"log_forwarder.publish.retries",
+		metric.WithDescription("Total number of sink publish retries after a failure."),
 		metric.WithUnit("{retry}"),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	kafkaPublishDuration, err := meter.Float64Histogram(
-		"log_forwarder.kafka.publish.duration",
-		metric.WithDescription("Kafka publish latency."),
+	publishDuration, err := meter.Float64Histogram(
+		"log_forwarder.publish.duration",
+		metric.WithDescription("Sink publish latency."),
 		metric.WithUnit("s"),
 	)
 	if err != nil {
@@ -261,7 +261,7 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		transformErrors:      transformErrors,
 		publishFailures:      publishFailures,
 		publishRetries:       publishRetries,
-		kafkaPublishDuration: kafkaPublishDuration,
+		publishDuration:      publishDuration,
 	}, nil
 }
 
@@ -353,11 +353,11 @@ func (c *Collector) RecordPublishRetry(ctx context.Context) {
 	c.publishRetries.Add(ctx, 1)
 }
 
-func (c *Collector) RecordKafkaPublishDuration(ctx context.Context, duration time.Duration) {
-	if c == nil || c.kafkaPublishDuration == nil {
+func (c *Collector) RecordPublishDuration(ctx context.Context, duration time.Duration) {
+	if c == nil || c.publishDuration == nil {
 		return
 	}
-	c.kafkaPublishDuration.Record(ctx, duration.Seconds())
+	c.publishDuration.Record(ctx, duration.Seconds())
 }
 
 func healthHandler(w http.ResponseWriter, _ *http.Request) {

@@ -160,7 +160,7 @@ func (p *Pipeline) publishWithRetry(ctx context.Context, payload []byte) error {
 		if cancel != nil {
 			cancel()
 		}
-		p.metrics.RecordKafkaPublishDuration(ctx, time.Since(start))
+		p.metrics.RecordPublishDuration(ctx, time.Since(start))
 		if err == nil {
 			return nil
 		}
