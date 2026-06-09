@@ -30,6 +30,7 @@ type LineEvent struct {
 // Watcher tails log files matching configured paths and patterns.
 type Watcher struct {
 	cfg        config.WatchConfig
+	onFull     string
 	poll       time.Duration
 	lines      chan<- LineEvent
 	watermarks *state.Store
@@ -49,8 +50,13 @@ type fileState struct {
 }
 
 func New(cfg *config.Config, lines chan<- LineEvent, watermarks *state.Store, collector *metrics.Collector, logger *slog.Logger) *Watcher {
+	onFull := cfg.Pipeline.OnFull
+	if onFull == "" {
+		onFull = "block"
+	}
 	return &Watcher{
 		cfg:        cfg.Watch,
+		onFull:     onFull,
 		poll:       cfg.PollInterval(),
 		lines:      lines,
 		watermarks: watermarks,
@@ -247,12 +253,12 @@ func (w *Watcher) readNewLines(state *fileState) error {
 			state.offset += int64(len(line))
 			if trimmed != "" {
 				w.metrics.RecordLineRead(context.Background(), 1)
-				w.lines <- LineEvent{
+				w.sendLineEvent(LineEvent{
 					Path:   state.path,
 					Line:   []byte(trimmed),
 					Offset: state.offset,
 					Inode:  state.inode,
-				}
+				})
 			}
 		}
 		if err != nil {
@@ -262,6 +268,19 @@ func (w *Watcher) readNewLines(state *fileState) error {
 			return err
 		}
 	}
+}
+
+func (w *Watcher) sendLineEvent(event LineEvent) {
+	if w.onFull == "drop" {
+		select {
+		case w.lines <- event:
+		default:
+			w.metrics.RecordLineBufferDropped(context.Background())
+			w.logger.Debug("dropping line, pipeline buffer full", "path", event.Path)
+		}
+		return
+	}
+	w.lines <- event
 }
 
 func (w *Watcher) closeAll() {

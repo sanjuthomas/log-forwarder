@@ -96,6 +96,7 @@ func TestMetricsServerExposesApplicationMetrics(t *testing.T) {
 
 	collector.RecordLineRead(context.Background(), 4)
 	collector.RecordLinePublished(context.Background())
+	collector.RecordLineBufferDropped(context.Background())
 	collector.RecordPublishFailure(context.Background())
 	collector.RecordPublishRetry(context.Background())
 	collector.RecordKafkaPublishDuration(context.Background(), 250000000) // 250ms
@@ -124,6 +125,7 @@ func TestMetricsServerExposesApplicationMetrics(t *testing.T) {
 			for _, want := range []string{
 				"log_forwarder_lines_read",
 				"log_forwarder_lines_published",
+				"log_forwarder_pipeline_buffer_dropped",
 				"log_forwarder_kafka_publish_failures",
 				"log_forwarder_kafka_publish_retries",
 				"log_forwarder_kafka_publish_duration",

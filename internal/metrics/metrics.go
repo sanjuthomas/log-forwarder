@@ -31,6 +31,7 @@ type Collector struct {
 	linesRead            metric.Int64Counter
 	linesPublished       metric.Int64Counter
 	linesSkipped         metric.Int64Counter
+	bufferDropped        metric.Int64Counter
 	transformErrors      metric.Int64Counter
 	publishFailures      metric.Int64Counter
 	publishRetries       metric.Int64Counter
@@ -164,6 +165,15 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		return nil, err
 	}
 
+	bufferDropped, err := meter.Int64Counter(
+		"log_forwarder.pipeline.buffer.dropped",
+		metric.WithDescription("Total number of line events dropped because the pipeline buffer was full."),
+		metric.WithUnit("{line}"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	transformErrors, err := meter.Int64Counter(
 		"log_forwarder.transform.errors",
 		metric.WithDescription("Total number of transform errors encountered."),
@@ -244,6 +254,7 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		linesRead:            linesRead,
 		linesPublished:       linesPublished,
 		linesSkipped:         linesSkipped,
+		bufferDropped:        bufferDropped,
 		transformErrors:      transformErrors,
 		publishFailures:      publishFailures,
 		publishRetries:       publishRetries,
@@ -309,6 +320,13 @@ func (c *Collector) RecordLineSkipped(ctx context.Context) {
 		return
 	}
 	c.linesSkipped.Add(ctx, 1)
+}
+
+func (c *Collector) RecordLineBufferDropped(ctx context.Context) {
+	if c == nil || c.bufferDropped == nil {
+		return
+	}
+	c.bufferDropped.Add(ctx, 1)
 }
 
 func (c *Collector) RecordTransformError(ctx context.Context) {
