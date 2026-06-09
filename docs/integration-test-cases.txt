@@ -1,0 +1,132 @@
+Log Forwarder — Integration Test Cases
+========================================
+
+This document lists integration test scenarios for log-forwarder. Cases marked
+AUTOMATED are implemented under internal/integration/ and run in CI via
+go test ./...
+
+Run integration tests:
+
+  go test ./internal/integration/ -v
+  go test ./...                    # includes integration package
+
+
+AUTOMATED — End-to-end (watcher + pipeline + sink)
+--------------------------------------------------
+
+ID    Test name                              Scenario
+--    ---------                              --------
+E2E-1 TestE2E_SpringBootSingleLineToFileSink
+                                             Spring Boot INFO line: multiline parser,
+                                             regex transform, static + host enrichers,
+                                             file sink JSONL output.
+
+E2E-2 TestE2E_SpringBootMultilineStackTrace
+                                             ERROR + 3-line stack trace becomes one
+                                             JSON record with multiline message field.
+
+E2E-3 TestE2E_WatermarkResumeAfterRestart
+                                             Publish 3 lines, stop forwarder, append 2
+                                             lines, restart with same watermark file;
+                                             sink has 5 records (no re-publish of first 3).
+                                             Uses line parser so each line commits
+                                             immediately (multiline holds the last event
+                                             until flush).
+
+E2E-4 TestE2E_LogRotation
+                                             Tail app.log, rotate (rename + new file),
+                                             both before-rotate and after-rotate lines
+                                             appear in sink.
+
+E2E-5 TestE2E_TransformOnErrorSkip
+                                             Malformed line skipped; valid tab-delimited
+                                             line published once.
+
+E2E-6 TestE2E_TransformOnErrorWrap
+                                             Malformed line published as {_raw, _path,
+                                             _error} wrapper record.
+
+E2E-7 TestE2E_HTTPSinkReceivesJSON
+                                             Watcher + pipeline posts JSON to httptest
+                                             HTTP ingest server.
+
+E2E-8 TestE2E_PublishRetryRecovers
+                                             Injected sink failures (2) then success;
+                                             record eventually written via pipeline retry.
+
+E2E-9 TestE2E_MetricsHealthAndCounters
+                                             Metrics server /health returns 200;
+                                             /metrics exposes lines_read and
+                                             lines_published after one line processed.
+
+
+AUTOMATED — Configuration
+-------------------------
+
+ID    Test name                              Scenario
+--    ---------                              --------
+CFG-1 TestIntegration_ExampleConfigsValidate
+                                             All configs/*.yaml and examples/kafka/*.yaml
+                                             load and pass Validate() without error.
+
+
+MANUAL / STAGING ONLY — Not automated (and why)
+-----------------------------------------------
+
+ID    Scenario                               Why manual
+--    ---------                              ----------
+M-1   Real Kafka publish (TLS/SASL/SCRAM)    Requires live broker cluster; docker-compose
+                                             or staging Kafka recommended.
+
+M-2   Kafka topic lag under sustained load   Needs broker metrics and multi-hour soak.
+
+M-3   Network partition to remote sink       Hard to simulate reliably in unit CI;
+                                             use toxiproxy or staging chaos.
+
+M-4   kill -9 mid-publish boundary           OS/process timing dependent; verify in
+                                             staging with duplicate-detection at consumer.
+
+M-5   Disk full on watermark or sink path    Requires filesystem quota manipulation.
+
+M-6   Two forwarders, same watermark file    Operational anti-pattern; document only.
+
+M-7   GSSAPI / Kerberos Kafka                Config validates; sink auth not implemented.
+
+M-8   OAuth2 HTTP ingest                     http-noauth only; custom sink required.
+
+M-9   24–72 hour soak at production volume   CI time/cost; run in staging pipeline.
+
+M-10  Prometheus alert rule firing           Requires Prometheus + Alertmanager stack.
+
+M-11  systemd Restart=on-failure recovery    Host-level supervisor; smoke on deploy target.
+
+M-12  Cross-platform rotation (Windows)      inode semantics differ; test on target OS.
+
+
+RECOMMENDED STAGING ADDITIONS (future automation)
+-------------------------------------------------
+
+These could be automated later with docker-compose or testcontainers:
+
+  - Kafka sink round-trip: forwarder -> Kafka -> consumer asserts JSON
+  - Publish failure sustained: stop broker, assert watermark stall + metric alerts
+  - Load generator: scripted append loop + assert buffer_depth stays bounded
+  - File sink concurrent rotation under poll interval stress
+
+
+TEST MATRIX (sink x parser)
+---------------------------
+
+                    line parser    multiline parser
+file sink           E2E-5,6        E2E-1,2,3,4
+http-noauth sink    E2E-7          (same as E2E-1 pattern — add if needed)
+kafka sink          manual M-1     manual M-1
+
+
+COVERAGE GAPS (acceptable for v1)
+---------------------------------
+
+  - No test for pipeline buffer full / on_full: block backpressure
+  - No test for multiple watch sources in one process
+  - No test for custom registered parser/transform/sink
+  - Metrics test does not assert exact counter values (presence only)
