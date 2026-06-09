@@ -166,16 +166,11 @@ func (c *Config) Validate() error {
 	if err := c.validateParser(); err != nil {
 		return err
 	}
-	if c.Transform.Type == "" {
-		return fmt.Errorf("transform.type must not be empty")
+	if err := c.validateTransform(); err != nil {
+		return err
 	}
-	if c.Transform.Type == "regex" && c.Transform.Pattern == "" {
-		return fmt.Errorf("transform.pattern is required when transform.type is regex")
-	}
-	switch c.Transform.OnError {
-	case "skip", "wrap":
-	default:
-		return fmt.Errorf("transform.on_error must be skip or wrap")
+	if err := c.validateEnrichers(); err != nil {
+		return err
 	}
 	if err := c.validatePipeline(); err != nil {
 		return err
@@ -199,10 +194,8 @@ func (c *Config) validateParser() error {
 	if parserType == "" {
 		parserType = "line"
 	}
-	switch parserType {
-	case "line", "multiline":
-	default:
-		return fmt.Errorf("parser.type must be line or multiline")
+	if !knownParserType(parserType) {
+		return unknownTypeError("parser.type", parserType, parserTypes)
 	}
 	if parserType == "multiline" {
 		if c.Parser.StartPattern == "" {
@@ -211,6 +204,24 @@ func (c *Config) validateParser() error {
 		if _, err := regexp.Compile(c.Parser.StartPattern); err != nil {
 			return fmt.Errorf("parser.start_pattern: %w", err)
 		}
+	}
+	return nil
+}
+
+func (c *Config) validateTransform() error {
+	if c.Transform.Type == "" {
+		return fmt.Errorf("transform.type must not be empty")
+	}
+	if !knownTransformType(c.Transform.Type) {
+		return unknownTypeError("transform.type", c.Transform.Type, transformerTypes)
+	}
+	if c.Transform.Type == "regex" && c.Transform.Pattern == "" {
+		return fmt.Errorf("transform.pattern is required when transform.type is regex")
+	}
+	switch c.Transform.OnError {
+	case "skip", "wrap":
+	default:
+		return fmt.Errorf("transform.on_error must be skip or wrap")
 	}
 	return nil
 }

@@ -19,6 +19,7 @@ var registry = map[string]Factory{}
 // Register adds a custom enricher factory. Call from init() in user code.
 func Register(name string, factory Factory) {
 	registry[name] = factory
+	config.RegisterEnricherType(name)
 }
 
 func NewChain(cfgs []config.EnricherConfig) ([]Enricher, error) {
