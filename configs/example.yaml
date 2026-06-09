@@ -28,7 +28,7 @@ kafka:
 
 transform:
   # Delimiter-based parsing (default). Set type to "regex" for pattern-based parsing
-  # (see configs/example-regex.yaml).
+  # (see configs/example-regex.yaml and configs/example-spring-boot.yaml).
   type: delimiter
   delimiter: "\t"
   columns:

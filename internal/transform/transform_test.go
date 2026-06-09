@@ -224,6 +224,43 @@ func TestRegexTransformerMultipleFields(t *testing.T) {
 	}
 }
 
+func TestRegexTransformerSpringBootDefault(t *testing.T) {
+	t.Parallel()
+
+	tr, err := New(config.TransformConfig{
+		Type:    "regex",
+		Pattern: `^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\S+)\s+(?P<pid>\d+)\s+---\s+\[\s*(?P<thread>[^\]]+?)\s*\]\s+(?P<logger>\S+)\s+:\s+(?P<message>.*)$`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	line := "2026-06-08 10:15:23.456  INFO 18432 --- [           main] com.acme.billing.BillingApplication      : Starting BillingApplication v1.4.2 using Java 17.0.10"
+	record, err := tr.Transform([]byte(line))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if record["timestamp"] != "2026-06-08 10:15:23.456" {
+		t.Fatalf("timestamp = %v", record["timestamp"])
+	}
+	if record["level"] != "INFO" {
+		t.Fatalf("level = %v", record["level"])
+	}
+	if record["pid"] != "18432" {
+		t.Fatalf("pid = %v", record["pid"])
+	}
+	if record["thread"] != "main" {
+		t.Fatalf("thread = %v", record["thread"])
+	}
+	if record["logger"] != "com.acme.billing.BillingApplication" {
+		t.Fatalf("logger = %v", record["logger"])
+	}
+	if record["message"] != "Starting BillingApplication v1.4.2 using Java 17.0.10" {
+		t.Fatalf("message = %v", record["message"])
+	}
+}
+
 func TestRegexTransformerNoMatch(t *testing.T) {
 	t.Parallel()
 

@@ -1,0 +1,49 @@
+# Spring Boot default console log format (Logback):
+#   <timestamp>  <level> <pid> --- [<thread>] <logger> : <message>
+#
+# Example line:
+#   2026-06-08 10:15:23.456  INFO 18432 --- [           main] com.acme.billing.BillingApplication      : Starting BillingApplication v1.4.2 using Java 17.0.10
+#
+# Published JSON record (after enrichers):
+#   {
+#     "timestamp": "2026-06-08 10:15:23.456",
+#     "level": "INFO",
+#     "pid": "18432",
+#     "thread": "main",
+#     "logger": "com.acme.billing.BillingApplication",
+#     "message": "Starting BillingApplication v1.4.2 using Java 17.0.10",
+#     "_path": "/var/log/billing/application.log",
+#     "application_id": "billing-service",
+#     "environment": "dev",
+#     "hostname": "app-server-01"
+#   }
+
+watch:
+  poll: 1s
+  sources:
+    - path: ./logs/spring-boot
+      patterns:
+        - "*.log"
+        - "*.log.*"
+        - "*.out"
+
+kafka:
+  brokers:
+    - localhost:9092
+  topic: logs
+
+transform:
+  type: regex
+  pattern: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\S+)\s+(?P<pid>\d+)\s+---\s+\[\s*(?P<thread>[^\]]+?)\s*\]\s+(?P<logger>\S+)\s+:\s+(?P<message>.*)$'
+  on_error: wrap
+
+enrichers:
+  - type: static
+    fields:
+      application_id: billing-service
+      environment: dev
+  - type: host
+
+pipeline:
+  buffer_size: 1024
+  on_full: block

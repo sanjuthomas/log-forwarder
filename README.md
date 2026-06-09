@@ -204,6 +204,15 @@ transform:
   on_error: wrap
 ```
 
+**Spring Boot default console format** ([`configs/example-spring-boot.yaml`](configs/example-spring-boot.yaml)):
+
+```yaml
+transform:
+  type: regex
+  pattern: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\S+)\s+(?P<pid>\d+)\s+---\s+\[\s*(?P<thread>[^\]]+?)\s*\]\s+(?P<logger>\S+)\s+:\s+(?P<message>.*)$'
+  on_error: wrap
+```
+
 ### `enrichers`
 
 A list of enrichers applied in order. Each entry has:
