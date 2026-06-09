@@ -17,7 +17,7 @@ import (
 func TestNewDisabledCollector(t *testing.T) {
 	t.Parallel()
 
-	collector, shutdown, err := New(config.MetricsConfig{}, Snapshot{})
+	collector, shutdown, err := New(config.MetricsConfig{}, Snapshot{}, nil)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -40,7 +40,7 @@ func TestNewEnabledCollector(t *testing.T) {
 		FilesWatched:   func() int64 { return 2 },
 		BufferDepth:    func() int64 { return 1 },
 		BufferCapacity: 1024,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -84,7 +84,7 @@ func TestMetricsServerExposesApplicationMetrics(t *testing.T) {
 		FilesWatched:   func() int64 { return 3 },
 		BufferDepth:    func() int64 { return 2 },
 		BufferCapacity: 512,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -144,7 +144,7 @@ func TestCollectorStartUsesConfiguredAddress(t *testing.T) {
 		Host:    "127.0.0.1",
 		Port:    0,
 		Path:    "/custom-metrics",
-	}, Snapshot{})
+	}, Snapshot{}, nil)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

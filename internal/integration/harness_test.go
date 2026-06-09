@@ -91,7 +91,7 @@ func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forw
 	lines := make(chan watcher.LineEvent, cfg.Pipeline.BufferSize)
 	var w *watcher.Watcher
 
-	collector, shutdownMetrics, err := metrics.New(cfg.Metrics, metrics.Snapshot{
+	snapshot := metrics.Snapshot{
 		FilesWatched: func() int64 {
 			if w == nil {
 				return 0
@@ -100,7 +100,9 @@ func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forw
 		},
 		BufferDepth:    func() int64 { return int64(len(lines)) },
 		BufferCapacity: int64(cfg.Pipeline.BufferSize),
-	})
+	}
+	readiness := buildHarnessReadiness(cfg, recordSink, snapshot)
+	collector, shutdownMetrics, err := metrics.New(cfg.Metrics, snapshot, readiness)
 	if err != nil {
 		t.Fatalf("metrics.New() error = %v", err)
 	}
@@ -346,4 +348,21 @@ func setupDirs(t *testing.T) (logDir, sinkPath, statePath string) {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
 	return logDir, sinkPath, statePath
+}
+
+func buildHarnessReadiness(cfg *config.Config, recordSink sink.Sink, snapshot metrics.Snapshot) *metrics.Readiness {
+	if !cfg.Metrics.Enabled {
+		return nil
+	}
+	readiness := &metrics.Readiness{
+		Snapshot:         snapshot,
+		BufferThreshold:  cfg.Metrics.Readiness.BufferThresholdOrDefault(),
+		RequireFiles:     cfg.Metrics.Readiness.RequireFiles,
+		SinkCheckEnabled: cfg.Metrics.Readiness.SinkCheckEnabled(),
+		SinkCheckTimeout: cfg.Metrics.Readiness.SinkCheckTimeoutDuration(cfg.SinkConnectTimeout()),
+	}
+	if checker, ok := recordSink.(sink.Checker); ok {
+		readiness.CheckSink = checker.Check
+	}
+	return readiness
 }
