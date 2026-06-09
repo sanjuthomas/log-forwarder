@@ -395,7 +395,7 @@ enrichers:
 | Field | Description |
 |-------|-------------|
 | `buffer_size` | Buffered channel size between watcher and pipeline (default `1024`) |
-| `on_full` | `block` (default) — backpressure when the buffer is full |
+| `on_full` | `block` (default) — watcher waits when the buffer is full; `drop` — discard new lines and increment `log_forwarder_pipeline_buffer_dropped` |
 | `publish_timeout` | Per-attempt timeout for `sink.Publish` (default `0` = no limit). Applies to all sink types. |
 | `publish_retry.initial_backoff` | Delay before the first retry (default `1s`) |
 | `publish_retry.max_backoff` | Maximum delay between retries (default `30s`) |
@@ -947,6 +947,7 @@ Other useful log lines:
 | `log_forwarder_lines_read` | Lines read from watched files |
 | `log_forwarder_lines_published` | Lines published to the configured sink |
 | `log_forwarder_lines_skipped` | Lines dropped (`transform.on_error: skip`) |
+| `log_forwarder_pipeline_buffer_dropped` | Lines dropped when `pipeline.on_full: drop` and buffer is full |
 | `log_forwarder_transform_errors` | Transform failures |
 | `log_forwarder_kafka_publish_failures` | Failed sink publish attempts |
 | `log_forwarder_kafka_publish_retries` | Retries after a publish failure |
