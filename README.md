@@ -205,6 +205,27 @@ enrichers:
 | `buffer_size` | Buffered channel size between watcher and pipeline (default `1024`) |
 | `on_full` | `block` (default) — backpressure when the buffer is full |
 
+### `metrics`
+
+Optional OpenTelemetry metrics exposed over HTTP in Prometheus format. **Disabled by default.**
+
+| Field | Description |
+|-------|-------------|
+| `enabled` | Start the management HTTP server (default `false`) |
+| `host` | Bind address (default `127.0.0.1`) |
+| `port` | Listen port (default `8080`) |
+| `path` | Metrics scrape path (default `/metrics`) |
+
+```yaml
+metrics:
+  enabled: true
+  host: 127.0.0.1
+  port: 8080
+  path: /metrics
+```
+
+See [Monitoring the forwarder](#monitoring-the-forwarder) for scrape setup, health checks, and alert guidance.
+
 ## Built-in transformers
 
 ### `delimiter`
@@ -525,6 +546,139 @@ docker exec -it kafka /opt/kafka/bin/kafka-console-consumer.sh \
 
 You should see JSON output with your transformed fields, enricher metadata, and `_path`.
 
+## Monitoring the forwarder
+
+The forwarder exposes three complementary signals for operations: **HTTP metrics**, **periodic status logs**, and **process health** (via your supervisor or orchestrator).
+
+### 1. Enable metrics
+
+Set `metrics.enabled: true` in your config. The forwarder starts a small HTTP server that serves:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /metrics` | Prometheus scrape endpoint (OpenTelemetry) |
+| `GET /health` | Liveness probe — returns `{"status":"UP"}` |
+
+Both endpoints share the same `metrics.host` and `metrics.port`. `/health` is only available when metrics are enabled.
+
+```bash
+curl http://127.0.0.1:8080/health
+curl http://127.0.0.1:8080/metrics
+```
+
+Bind to `127.0.0.1` when Prometheus runs on the same host. Use `0.0.0.0` only if a remote scraper needs direct access, and restrict access at the network layer.
+
+### 2. Scrape with Prometheus
+
+Add a scrape job targeting the forwarder management port:
+
+```yaml
+scrape_configs:
+  - job_name: log-forwarder
+    static_configs:
+      - targets: ["localhost:8080"]
+    metrics_path: /metrics
+    scrape_interval: 15s
+```
+
+If you changed `metrics.path` in config, use that value for `metrics_path`.
+
+### 3. Health checks
+
+Use `/health` for liveness probes. The endpoint confirms the management server is running; it does not verify Kafka connectivity on every request (Kafka is checked at startup).
+
+**Kubernetes example:**
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 30
+```
+
+Pair this with log monitoring or alerts on `log_forwarder_kafka_publish_failures` to detect downstream Kafka issues after startup.
+
+### 4. Log-based status
+
+Configure periodic status logging to stderr or a log file:
+
+```yaml
+logging:
+  level: info
+  format: json
+  status_interval: 30s
+```
+
+Every `status_interval`, the forwarder logs a `forwarder status` line with `watched_files` — useful when metrics are disabled or as a secondary signal. Set `status_interval: 0` to disable.
+
+Other useful log lines:
+
+| Log message | Meaning |
+|-------------|---------|
+| `log forwarder started` | Process is up; includes sources, topic, and metrics address when enabled |
+| `kafka connectivity verified` | Startup Kafka check passed |
+| `kafka unavailable at startup` | Forwarder refused to start — broker or topic unreachable |
+| `kafka publish failed, retrying` | Transient publish error; check Kafka and network |
+| `forwarder stopped` | Clean or error shutdown |
+
+### 5. Metrics reference
+
+**Forwarder metrics:**
+
+| Metric | Description |
+|--------|-------------|
+| `log_forwarder_lines_read` | Lines read from watched files |
+| `log_forwarder_lines_published` | Lines published to Kafka |
+| `log_forwarder_lines_skipped` | Lines dropped (`transform.on_error: skip`) |
+| `log_forwarder_transform_errors` | Transform failures |
+| `log_forwarder_kafka_publish_failures` | Failed Kafka publish attempts |
+| `log_forwarder_kafka_publish_retries` | Retries after a publish failure |
+| `log_forwarder_kafka_publish_duration` | Kafka publish latency (histogram, seconds) |
+| `log_forwarder_files_watched` | Files currently being tailed |
+| `log_forwarder_pipeline_buffer_depth` | Events queued between watcher and pipeline |
+| `log_forwarder_pipeline_buffer_capacity` | Configured `pipeline.buffer_size` |
+
+**Process and runtime metrics:**
+
+| Metric | Description |
+|--------|-------------|
+| `process_memory_usage` | Process RSS in bytes |
+| `process_cpu_time` | Process CPU time (user/system) |
+| `go_memory_used` | Go runtime memory in use |
+| `go_memory_allocated` | Heap memory allocated by the application |
+| `go_cpu_time` | CPU time spent by the Go runtime |
+| `go_goroutine_count` | Number of live goroutines |
+
+### 6. What to alert on
+
+| Signal | Suggested condition | Likely cause |
+|--------|---------------------|--------------|
+| Publish failures | `rate(log_forwarder_kafka_publish_failures[5m]) > 0` sustained | Kafka down, auth/TLS issue, or network partition |
+| Publish retries | `rate(log_forwarder_kafka_publish_retries[5m])` rising | Intermittent broker or timeout pressure |
+| Publish latency | `histogram_quantile(0.95, rate(log_forwarder_kafka_publish_duration_bucket[5m]))` high | Broker load, network latency, or undersized cluster |
+| Buffer backlog | `log_forwarder_pipeline_buffer_depth / log_forwarder_pipeline_buffer_capacity > 0.8` sustained | Pipeline slower than ingest; risk of backpressure |
+| No files watched | `log_forwarder_files_watched == 0` while logs are expected | Wrong watch paths, patterns, or permissions |
+| Read/publish gap | `rate(log_forwarder_lines_read[5m])` >> `rate(log_forwarder_lines_published[5m])` | Transform skips, persistent publish failures, or pipeline stall |
+| Memory growth | `process_memory_usage` or `go_memory_used` trending up without stabilizing | Possible leak or sustained backlog |
+| Process down | `/health` failing or scrape target `up == 0` | Crash, OOM kill, or misconfigured port |
+
+### 7. Quick checks
+
+```bash
+# Is the management server responding?
+curl -sf http://127.0.0.1:8080/health
+
+# Are lines flowing?
+curl -s http://127.0.0.1:8080/metrics | grep log_forwarder_lines_
+
+# Is the pipeline backing up?
+curl -s http://127.0.0.1:8080/metrics | grep log_forwarder_pipeline_buffer
+```
+
+For a single-host deployment, combining Prometheus alerts on publish failures and buffer depth with `status_interval` logs and a systemd `Restart=on-failure` policy gives solid baseline coverage.
+
 ## Deployment
 
 There is no packaged deployment artifact in this repository. A typical production setup:
@@ -562,6 +716,7 @@ configs/               Example and local config files
 examples/custom/       Custom binary with registered extensions
 internal/
   config/              YAML loading and validation
+  metrics/             OpenTelemetry metrics and HTTP endpoints
   watcher/             File tailing and rotation detection
   transform/           Transformer registry and built-ins (delimiter, regex, tab)
   enrich/              Enricher registry and built-ins (static, host)
