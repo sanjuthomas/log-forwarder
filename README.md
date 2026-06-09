@@ -1040,7 +1040,7 @@ For custom transformers or enrichers, deploy the binary built from your own entr
 cmd/log-forwarder/     Main entrypoint (built-in transformers/enrichers only)
 configs/               Example and local config files
 docker/                Sample log data for docker compose
-Dockerfile             Multi-stage image (distroless runtime)
+Dockerfile             Multi-stage image (Alpine runtime, non-root forwarder)
 docker-compose.yaml    Local container smoke test
 examples/custom/       Custom binary with registered extensions
 internal/

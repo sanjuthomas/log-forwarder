@@ -45,6 +45,8 @@ Use `configs/example-docker-sidecar.yaml` as a starting point — paths are abso
 
 Keep the watermark directory **outside** watched log paths (validated at startup).
 
+The image entrypoint adjusts ownership on `/state` and `/output` at startup so the non-root forwarder user can write to Docker volumes and bind mounts.
+
 ## Kubernetes sidecar (sketch)
 
 ```yaml

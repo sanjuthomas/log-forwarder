@@ -20,11 +20,18 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -o /out/log-forwarder \
     ./cmd/log-forwarder
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM alpine:3.20
+
+RUN apk add --no-cache ca-certificates su-exec \
+    && addgroup -g 65532 -S forwarder \
+    && adduser -u 65532 -S -G forwarder forwarder \
+    && mkdir -p /state /output \
+    && chown forwarder:forwarder /state /output
 
 COPY --from=build /out/log-forwarder /usr/local/bin/log-forwarder
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-USER nonroot:nonroot
-
-ENTRYPOINT ["/usr/local/bin/log-forwarder"]
+# Entrypoint starts as root to fix volume ownership, then drops to forwarder.
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["-config", "/config/config.yaml"]
