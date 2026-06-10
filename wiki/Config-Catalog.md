@@ -8,19 +8,35 @@ For narrative setup, see [[Configuration Guide]] and [[Configuration-Reference]]
 
 ---
 
+## Units and types
+
+Config keys do **not** encode units in the name. Use this table when a value's unit is not obvious:
+
+| Unit | Keys | Meaning |
+|------|------|---------|
+| **Line events (count)** | `pipeline.buffer_size` | Max queued **line events** between watcher and pipeline — **not** bytes, KiB, or MiB. `1024` = up to 1024 tailed lines waiting to be parsed. Metric: `log_forwarder_pipeline_buffer_depth` / `log_forwarder_pipeline_buffer_capacity` |
+| **Bytes** | `pipeline.max_publish_bytes`, `pipeline.publish_batch.max_bytes` | Serialized JSON size in **bytes** (`1048576` = 1 MiB) |
+| **Duration** | `watch.poll`, `watch.state.flush_interval`, `pipeline.publish_timeout`, `pipeline.publish_retry.*`, `pipeline.publish_batch.flush_interval`, `pipeline.publish_batch.hibernate.wake_interval`, `sink.*.timeout`, `sink.kafka.connect_timeout`, `logging.status_interval`, `metrics.readiness.sink_check_timeout` | Go duration string (`1s`, `100ms`, `30s`) |
+| **Count** | `watch.state.flush_every`, `pipeline.publish_retry.max_attempts`, `pipeline.publish_batch.max_attempts`, `pipeline.publish_batch.dead_letter.max_consecutive_batches` | Integer count (not a size) |
+| **Ratio** | `metrics.readiness.buffer_threshold` | Fraction `0.0`–`1.0` (e.g. `0.8` = 80% of `pipeline.buffer_size`) |
+
+**Two different buffers:** `pipeline.buffer_size` is a **line-event queue** (watcher → parser). `pipeline.publish_batch.max_bytes` is a **byte buffer** (enrich → sink). They are independent.
+
+---
+
 ## `watch` — file tailing
 
-| Key | What it is for | Default | When to use |
+| Key | What it is for | Unit | Default | When to use |
 |-----|----------------|---------|-------------|
-| `watch.poll` | How often the watcher rescans directories for new or rotated files | `1s` | Lower for faster discovery (more CPU); raise on very large directory trees |
-| `watch.paths` | Directories to tail when every directory shares the same glob patterns | cwd (no `-config`) | Simple single- or multi-directory setups with identical patterns |
-| `watch.patterns` | Glob patterns applied to every entry in `watch.paths` | `*.log*` (no `-config`) | Match your application's log filenames (`*.log`, `*.out`, `*.jsonl`, …) |
-| `watch.sources` | Per-directory watch entries, each with its own `path` and `patterns` | — | Different directories need different globs; preferred in production |
-| `watch.sources[].path` | Directory to watch | — | Use **absolute paths** in production |
-| `watch.sources[].patterns` | Globs for that directory only | — | Required when using `sources` |
-| `watch.state.path` | Watermark file — stores per-file byte offset and inode for **this process** | `.log-forwarder/watermarks.json` | Always set explicitly in production; one file per forwarder process. See [[Watermarks and Restarts]] |
-| `watch.state.flush_interval` | How often in-memory watermarks are written to disk | `1s` | `0` = persist after every line (higher I/O, smaller crash window). Raise to reduce disk writes under heavy load |
-| `watch.state.flush_every` | Persist watermarks after this many in-memory updates | disabled | Combine with `flush_interval` for count-based flush; useful to cap persist frequency at high line rates |
+| `watch.poll` | How often the watcher rescans directories for new or rotated files | duration | `1s` | Lower for faster discovery (more CPU); raise on very large directory trees |
+| `watch.paths` | Directories to tail when every directory shares the same glob patterns | path list | cwd (no `-config`) | Simple single- or multi-directory setups with identical patterns |
+| `watch.patterns` | Glob patterns applied to every entry in `watch.paths` | glob list | `*.log*` (no `-config`) | Match your application's log filenames (`*.log`, `*.out`, `*.jsonl`, …) |
+| `watch.sources` | Per-directory watch entries, each with its own `path` and `patterns` | list | — | Different directories need different globs; preferred in production |
+| `watch.sources[].path` | Directory to watch | path | — | Use **absolute paths** in production |
+| `watch.sources[].patterns` | Globs for that directory only | glob list | — | Required when using `sources` |
+| `watch.state.path` | Watermark file — stores per-file byte offset and inode for **this process** | file path | `.log-forwarder/watermarks.json` | Always set explicitly in production; one file per forwarder process. See [[Watermarks and Restarts]] |
+| `watch.state.flush_interval` | How often in-memory watermarks are written to disk | duration | `1s` | `0` = persist after every line (higher I/O, smaller crash window). Raise to reduce disk writes under heavy load |
+| `watch.state.flush_every` | Persist watermarks after this many in-memory updates | count | disabled | Combine with `flush_interval` for count-based flush; useful to cap persist frequency at high line rates |
 
 **Rotation:** rotation is detected by **inode change** only. `copytruncate` logrotate is **not supported** — use rename/create rotation. See [[Watermarks and Restarts]].
 
@@ -143,42 +159,42 @@ Non-2xx responses are publish failures (retried). Startup `Check()` also require
 
 ## `pipeline` — buffering, retry, and publish behavior
 
-| Key | What it is for | Default | When to use |
-|-----|----------------|---------|-------------|
-| `pipeline.buffer_size` | Watcher → pipeline channel depth (line events) | `1024` | Raise under burst ingest; lower (e.g. `64`) in smoke tests. Full channel behavior depends on `on_full` |
-| `pipeline.on_full` | Behavior when watcher → pipeline buffer is full | `block` | **`block`** in production (backpressure). **`drop`** only when permanent log loss is acceptable — see [[Configuration-Reference#pipelineon_full-block-vs-drop]] |
-| `pipeline.publish_timeout` | Per-attempt deadline for `sink.Publish` | `0` (no limit) | Set (e.g. `30s`) to fail slow sinks instead of hanging forever |
-| `pipeline.max_publish_bytes` | Max serialized JSON size before publish | `1048576` (1 MiB) | Align with Kafka `message.max.bytes`; `0` disables truncation |
-| `pipeline.truncate_field` | String field shortened when over limit | `message` | Change if `message` is not the oversized field |
-| `pipeline.truncate_suffix` | Suffix appended to truncated text | `… [truncated]` | Operator-visible marker in truncated records |
+| Key | What it is for | Unit | Default | When to use |
+|-----|----------------|------|---------|-------------|
+| `pipeline.buffer_size` | Max queued **line events** between watcher and pipeline (Go channel capacity) | **line events** | `1024` | **Not KiB/MiB.** `1024` ≈ up to 1024 tailed lines buffered before backpressure. Raise under burst ingest; lower (e.g. `64`) in smoke tests. Behavior when full: `on_full` |
+| `pipeline.on_full` | Behavior when watcher → pipeline buffer is full | enum | `block` | **`block`** in production (backpressure). **`drop`** only when permanent log loss is acceptable — see [[Configuration-Reference#pipelineon_full-block-vs-drop]] |
+| `pipeline.publish_timeout` | Per-attempt deadline for `sink.Publish` | duration | `0` (no limit) | Set (e.g. `30s`) to fail slow sinks instead of hanging forever |
+| `pipeline.max_publish_bytes` | Max serialized JSON size before publish | **bytes** | `1048576` (1 MiB) | Align with Kafka `message.max.bytes`; `0` disables truncation |
+| `pipeline.truncate_field` | String field shortened when over limit | field name | `message` | Change if `message` is not the oversized field |
+| `pipeline.truncate_suffix` | Suffix appended to truncated text | string | `… [truncated]` | Operator-visible marker in truncated records |
 
 ### `pipeline.publish_retry`
 
 Retries a **single record** (or sequential publishes) on transient sink errors. Watermarks do not advance until publish succeeds.
 
-| Key | What it is for | Default | When to use |
-|-----|----------------|---------|-------------|
-| `pipeline.publish_retry.initial_backoff` | Delay before first retry | `1s` | Lower for fast recovery smoke tests |
-| `pipeline.publish_retry.max_backoff` | Cap on exponential backoff | `30s` | Raise for flaky networks; must be ≥ `initial_backoff` |
-| `pipeline.publish_retry.max_attempts` | Give up after N attempts | `0` (retry until shutdown) | Set finite value to fail faster; `0` blocks tailing on persistent failure |
+| Key | What it is for | Unit | Default | When to use |
+|-----|----------------|------|---------|-------------|
+| `pipeline.publish_retry.initial_backoff` | Delay before first retry | duration | `1s` | Lower for fast recovery smoke tests |
+| `pipeline.publish_retry.max_backoff` | Cap on exponential backoff | duration | `30s` | Raise for flaky networks; must be ≥ `initial_backoff` |
+| `pipeline.publish_retry.max_attempts` | Give up after N attempts | count | `0` (retry until shutdown) | Set finite value to fail faster; `0` blocks tailing on persistent failure |
 
 ### `pipeline.publish_batch`
 
 Byte/time buffer **after enrich**, before sink. Batches flush on size, timer, or shutdown.
 
-| Key | What it is for | Default | When to use |
-|-----|----------------|---------|-------------|
-| `pipeline.publish_batch.max_bytes` | Sum of JSON sizes before size-based flush | `1048576` | Tune for Kafka batch efficiency; `0` disables size flush |
-| `pipeline.publish_batch.flush_interval` | Max time records wait in buffer | `100ms` | Lower for lower latency; `0` disables timer flush. Set **both** `max_bytes: 0` and `flush_interval: 0` for synchronous per-record publish |
-| `pipeline.publish_batch.max_attempts` | Per-**batch** attempts before `on_flush_failure` | inherits `publish_retry.max_attempts` | Override when batch retry should differ from single-record retry |
-| `pipeline.publish_batch.on_flush_failure` | Policy when batch flush fails after retries | `hibernate` | `hibernate` = stop publishing, stall watermarks, block ingest. `dead_letter` = spill batch to local JSONL then advance watermarks |
+| Key | What it is for | Unit | Default | When to use |
+|-----|----------------|------|---------|-------------|
+| `pipeline.publish_batch.max_bytes` | Sum of serialized JSON before size-based flush (separate from `buffer_size`) | **bytes** | `1048576` | Tune for Kafka batch efficiency; `0` disables size flush |
+| `pipeline.publish_batch.flush_interval` | Max time records wait in publish buffer | duration | `100ms` | Lower for lower latency; `0` disables timer flush. Set **both** `max_bytes: 0` and `flush_interval: 0` for synchronous per-record publish |
+| `pipeline.publish_batch.max_attempts` | Per-**batch** attempts before `on_flush_failure` | count | inherits `publish_retry.max_attempts` | Override when batch retry should differ from single-record retry |
+| `pipeline.publish_batch.on_flush_failure` | Policy when batch flush fails after retries | enum | `hibernate` | `hibernate` = stop publishing, stall watermarks, block ingest. `dead_letter` = spill batch to local JSONL then advance watermarks |
 
 ### `pipeline.publish_batch.hibernate`
 
 | Key | What it is for | Default | When to use |
 |-----|----------------|---------|-------------|
 | `pipeline.publish_batch.hibernate.wake_enabled` | Periodically retry stalled batch while hibernating | `false` | `true` for self-healing without pod restart; default requires restart to clear hibernate |
-| `pipeline.publish_batch.hibernate.wake_interval` | Time between wake retries | `10m` | Tune recovery speed when `wake_enabled: true` |
+| `pipeline.publish_batch.hibernate.wake_interval` | Time between wake retries | duration | `10m` | Tune recovery speed when `wake_enabled: true` |
 
 When hibernating: `/health` stays `200`, `/ready` returns `503` (`reason: sink_hibernating`).
 
@@ -189,7 +205,7 @@ Required when `on_flush_failure: dead_letter`.
 | Key | What it is for | Default | When to use |
 |-----|----------------|---------|-------------|
 | `pipeline.publish_batch.dead_letter.path` | Directory for failed-batch JSONL files | — | Ephemeral sidecar volume in Kubernetes; validated writable at startup |
-| `pipeline.publish_batch.dead_letter.max_consecutive_batches` | DLQ batches without successful sink publish before falling back to hibernate | `3` | Lower to hibernate sooner; raise to tolerate longer sink outages |
+| `pipeline.publish_batch.dead_letter.max_consecutive_batches` | DLQ batches without successful sink publish before falling back to hibernate | count | `3` | Lower to hibernate sooner; raise to tolerate longer sink outages |
 
 Example: `configs/example-docker-kafka-deadletter.yaml`. See [[Monitoring#1-Enable-metrics]] for `GET /deadletters`.
 
@@ -224,7 +240,7 @@ Example: `configs/example-docker-kafka-deadletter.yaml`. See [[Monitoring#1-Enab
 | `metrics.readiness.path` | Readiness HTTP path | `/ready` | Kubernetes `readinessProbe.httpGet.path` |
 | `metrics.readiness.sink_check` | Re-check sink connectivity on `/ready` | `true` | `false` if sink checks are too expensive or handled elsewhere |
 | `metrics.readiness.sink_check_timeout` | Timeout for readiness sink check | `10s` (sink connect timeout) | Lower in fast-fail sidecar setups |
-| `metrics.readiness.buffer_threshold` | Fail ready when `buffer_depth / capacity` exceeds this | `0.8` | Tune backpressure signaling for load balancers |
+| `metrics.readiness.buffer_threshold` | Fail ready when `buffer_depth / capacity` exceeds this | ratio | `0.8` | Fraction of `pipeline.buffer_size` (line events), not bytes |
 | `metrics.readiness.require_files` | Fail ready when no files are being tailed | `false` | `true` when an empty watch list should mark pod not ready |
 
 ---

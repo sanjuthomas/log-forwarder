@@ -423,7 +423,7 @@ enrichers:
 
 | Field | Description |
 |-------|-------------|
-| `buffer_size` | Buffered channel size between watcher and pipeline (default `1024`) |
+| `buffer_size` | Max queued **line events** between watcher and pipeline (default `1024`) — **count, not bytes/KiB/MiB** |
 | `on_full` | `block` (default) — watcher waits when the buffer is full; `drop` — discard new lines when the buffer is full (see [[Configuration-Reference#pipelineon_full-block-vs-drop|`on_full: drop` semantics]] below) |
 | `publish_timeout` | Per-attempt timeout for `sink.Publish` (default `0` = no limit). Applies to all sink types. |
 | `publish_retry.initial_backoff` | Delay before the first retry (default `1s`) |
