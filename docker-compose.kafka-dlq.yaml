@@ -1,0 +1,57 @@
+services:
+  kafka:
+    image: apache/kafka:3.9.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+  kafka-init:
+    image: apache/kafka:3.9.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists \
+          --bootstrap-server kafka:9092 \
+          --topic logs \
+          --partitions 1 \
+          --replication-factor 1
+
+  log-forwarder:
+    build: .
+    image: sanjuthomas/log-forwarder:kafka-dlq-smoke
+    command: ["-config", "/config/config.yaml"]
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./docker/sample-data:/var/log/app:rw
+      - ./configs/example-docker-kafka-deadletter.yaml:/config/config.yaml:ro
+      - log-forwarder-kafka-dlq-state:/state
+      - log-forwarder-kafka-dlq:/dlq
+    ports:
+      - "18084:8080"
+    restart: unless-stopped
+
+volumes:
+  log-forwarder-kafka-dlq-state:
+  log-forwarder-kafka-dlq:

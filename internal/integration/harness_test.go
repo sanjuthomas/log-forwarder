@@ -77,6 +77,10 @@ func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forw
 		checkCancel()
 	}
 
+	if err := cfg.ValidateDeadLetterAtStartup(); err != nil {
+		t.Fatalf("ValidateDeadLetterAtStartup() error = %v", err)
+	}
+
 	if opts.metricsEnabled {
 		cfg.Metrics.Enabled = true
 		cfg.Metrics.Host = "127.0.0.1"
@@ -120,6 +124,12 @@ func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forw
 				return 0
 			}
 			return pipe.HibernatingSnapshot()
+		},
+		PublishConsecutiveDLQBatches: func() int64 {
+			if pipe == nil {
+				return 0
+			}
+			return pipe.ConsecutiveDLQSnapshot()
 		},
 	}
 	readiness := buildHarnessReadiness(cfg, recordSink, snapshot, func() bool {

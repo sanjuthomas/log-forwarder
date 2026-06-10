@@ -1,0 +1,80 @@
+# Kafka dead letter smoke — publish failures spill to /dlq instead of hibernating.
+#
+# Run: ./scripts/kafka-deadletter-smoke.sh
+
+watch:
+  poll: 500ms
+  sources:
+    - path: /var/log/app
+      patterns:
+        - "kafka-dlq-smoke.log"
+  state:
+    path: /state/watermarks.json
+
+sink:
+  type: kafka
+  kafka:
+    brokers:
+      - kafka:9092
+    topic: logs
+    connect_timeout: 5s
+    security:
+      protocol: PLAINTEXT
+
+parser:
+  type: line
+
+transform:
+  type: delimiter
+  delimiter: "\t"
+  columns:
+    - timestamp
+    - level
+    - message
+  on_error: wrap
+
+filter:
+  match: all
+  rules:
+    - type: field
+      field: level
+      op: in
+      values: [ERROR]
+      ignore_case: true
+
+enrichers:
+  - type: static
+    fields:
+      application_id: kafka-dlq-smoke-test
+      environment: docker
+  - type: host
+
+pipeline:
+  buffer_size: 64
+  on_full: block
+  publish_batch:
+    max_bytes: 1048576
+    flush_interval: 200ms
+    on_flush_failure: dead_letter
+    max_attempts: 2
+    dead_letter:
+      path: /dlq
+      max_consecutive_batches: 3
+  publish_retry:
+    initial_backoff: 100ms
+    max_backoff: 500ms
+    max_attempts: 2
+
+metrics:
+  enabled: true
+  host: 0.0.0.0
+  port: 8080
+  path: /metrics
+  readiness:
+    sink_check: true
+    buffer_threshold: 0.8
+
+logging:
+  level: info
+  format: json
+  status_interval: 0s

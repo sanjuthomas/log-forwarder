@@ -103,6 +103,12 @@ KAFKA-1 scripts/kafka-smoke.sh (CI on every PR to main; also workflow_dispatch)
                                              ERROR-only filter: one record on topic logs,
                                              WARN filtered, lines_filtered metric present.
 
+KAFKA-2 scripts/kafka-deadletter-smoke.sh (CI with KAFKA-1)
+                                             docker-compose.kafka-dlq.yaml: real Kafka sink,
+                                             broker stopped after startup, failed publish
+                                             writes JSONL to /dlq, dead_letter metrics,
+                                             line not on topic after broker restart.
+
 SMOKE-1 scripts/docker-smoke.sh
                                              docker-compose.smoke.yaml file-sink stack with
                                              ERROR-only filter: one JSONL record, filtered
