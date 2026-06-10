@@ -133,6 +133,9 @@ func TestE2E_LogRotation(t *testing.T) {
 
 	cfg := springBootConfig(logDir, sinkPath, statePath)
 	cfg.Parser = config.ParserConfig{Type: "line"}
+	// Only tail the active log file; *.log.* would also match app.log.1 after rotation
+	// and re-publish archived content as a false duplicate.
+	cfg.Watch.Sources[0].Patterns = []string{"*.log"}
 	startForwarder(t, cfg, harnessOptions{})
 	waitForRecordCount(t, sinkPath, 1)
 
@@ -143,10 +146,10 @@ func TestE2E_LogRotation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	waitForRecordCount(t, sinkPath, 2)
+	waitForSinkMessages(t, sinkPath, "before-rotate", "after-rotate")
 
 	records := readJSONLRecords(t, sinkPath)
-	messages := []string{records[0]["message"].(string), records[1]["message"].(string)}
+	messages := sinkMessages(records)
 	if !containsAll(messages, "before-rotate", "after-rotate") {
 		t.Fatalf("messages = %v", messages)
 	}

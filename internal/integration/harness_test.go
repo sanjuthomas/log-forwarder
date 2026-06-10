@@ -306,6 +306,32 @@ func countJSONLRecords(path string) (int, error) {
 	return count, scanner.Err()
 }
 
+func sinkMessages(records []map[string]any) []string {
+	messages := make([]string, 0, len(records))
+	for _, record := range records {
+		if msg, ok := record["message"].(string); ok {
+			messages = append(messages, msg)
+		}
+	}
+	return messages
+}
+
+func waitForSinkMessages(t *testing.T, path string, want ...string) {
+	t.Helper()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		records := readJSONLRecords(t, path)
+		if containsAll(sinkMessages(records), want...) {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+
+	records := readJSONLRecords(t, path)
+	t.Fatalf("timeout waiting for messages %v in %s, got %v", want, path, sinkMessages(records))
+}
+
 func waitForRecordCount(t *testing.T, path string, want int) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
