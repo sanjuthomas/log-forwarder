@@ -146,6 +146,29 @@ func TestValidatePipelineRejectsNegativeMaxPublishBytes(t *testing.T) {
 	}
 }
 
+func TestValidateHibernateWakeIntervalRequiresPositiveWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.Pipeline.PublishBatch.Hibernate.WakeEnabled = true
+	cfg.Pipeline.PublishBatch.Hibernate.WakeInterval = "0"
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error for wake_interval 0 when wake_enabled")
+	}
+}
+
+func TestValidateHibernateWakeIntervalRejectsInvalidDuration(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.Pipeline.PublishBatch.Hibernate.WakeInterval = "not-a-duration"
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error for invalid hibernate.wake_interval")
+	}
+}
+
 func TestValidatePublishBatchRejectsInvalidOnFlushFailure(t *testing.T) {
 	t.Parallel()
 

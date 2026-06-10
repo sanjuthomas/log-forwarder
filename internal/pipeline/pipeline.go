@@ -35,9 +35,12 @@ type Pipeline struct {
 	flusher      *publishFlusher
 	runCtx       context.Context
 
-	hibernateMu     sync.RWMutex
-	hibernating     bool
-	hibernateDetail string
+	hibernateMu          sync.RWMutex
+	hibernating          bool
+	hibernateDetail      string
+	hibernateBatch       []pendingPublish
+	hibernateWakeRunning bool
+	hibernateWakeAfter   func(time.Duration) <-chan time.Time
 }
 
 type Options struct {
