@@ -104,6 +104,16 @@ E2E-19 TestE2E_DeadLetterOnPublishFailure
                                              on disk, watermark advanced, consecutive DLQ
                                              counter incremented, forwarder not hibernating.
 
+E2E-20 TestE2E_DebouncedWatermarkReplayAfterCrash
+                                             watch.state.flush_interval 100ms with delayed
+                                             disk persist; crash stop without flush; restart
+                                             re-publishes lines within the debounce window.
+
+E2E-21 TestE2E_DebouncedWatermarkGracefulStopNoReplay
+                                             debounced watermark with graceful stop (final
+                                             flush); restart appends new lines only with no
+                                             duplicate publish of earlier records.
+
 
 AUTOMATED — Publish batch unit tests (internal/pipeline)
 --------------------------------------------------------
@@ -216,6 +226,7 @@ These could be automated later with docker-compose or testcontainers:
 
   - Kafka sink round-trip: forwarder -> Kafka -> consumer asserts JSON  [DONE: kafka-smoke.sh]
   - Publish failure sustained: stop broker, assert watermark stall + metric alerts  [PARTIAL: E2E-15, E2E-16]
+  - Debounced watermark crash/restart replay window  [DONE: E2E-20, E2E-21]
   - Load generator: scripted append loop + assert buffer_depth stays bounded
   - File sink concurrent rotation under poll interval stress
 
@@ -244,7 +255,7 @@ TEST MATRIX (sink x parser)
 ---------------------------
 
                     line parser    multiline parser
-file sink           E2E-5,6,10-19  E2E-1,2,3,4
+file sink           E2E-5,6,10-21  E2E-1,2,3,4
 http-noauth sink    E2E-7          (same as E2E-1 pattern — add if needed)
 kafka sink          KAFKA-1, manual M-1 (TLS/SASL)   KAFKA-1 (PLAINTEXT + filter)
 docker file smoke   SMOKE-1        —

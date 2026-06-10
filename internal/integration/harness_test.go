@@ -33,9 +33,10 @@ type forwarderHarness struct {
 }
 
 type harnessOptions struct {
-	sink           sink.Sink
-	metricsEnabled bool
-	metricsPort    int
+	sink               sink.Sink
+	metricsEnabled     bool
+	metricsPort        int
+	skipPeriodicFlush  bool
 }
 
 func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forwarderHarness {
@@ -58,7 +59,9 @@ func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forw
 		t.Fatalf("NewStore() error = %v", err)
 	}
 	flushCtx, flushCancel := context.WithCancel(context.Background())
-	go watermarks.RunPeriodicFlush(flushCtx)
+	if !opts.skipPeriodicFlush {
+		go watermarks.RunPeriodicFlush(flushCtx)
+	}
 
 	recordSink := opts.sink
 	if recordSink == nil {
@@ -176,7 +179,19 @@ func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forw
 func (h *forwarderHarness) stop(t *testing.T) {
 	t.Helper()
 	h.cancelAndWait(t)
-	h.cleanup(t)
+	h.cleanup(t, true)
+}
+
+// crashStop simulates kill -9 / power loss: stop the forwarder without persisting
+// in-memory watermark updates to disk.
+func (h *forwarderHarness) crashStop(t *testing.T) {
+	t.Helper()
+	if h.flushCancel != nil {
+		h.flushCancel()
+		h.flushCancel = nil
+	}
+	h.cancelAndWait(t)
+	h.cleanup(t, false)
 }
 
 func (h *forwarderHarness) cancelAndWait(t *testing.T) {
@@ -197,25 +212,28 @@ func (h *forwarderHarness) cancelAndWait(t *testing.T) {
 	}
 }
 
-func (h *forwarderHarness) cleanup(t *testing.T) {
+func (h *forwarderHarness) cleanup(t *testing.T, flushWatermarks bool) {
 	t.Helper()
 	if h.sink != nil {
 		_ = h.sink.Close()
+		h.sink = nil
 	}
 	if h.shutdown != nil {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
 		_ = h.shutdown(shutdownCtx)
 		shutdownCancel()
+		h.shutdown = nil
 	}
 	if h.flushCancel != nil {
 		h.flushCancel()
 		h.flushCancel = nil
 	}
-	if h.watermarks != nil {
+	if flushWatermarks && h.watermarks != nil {
 		if err := h.watermarks.Flush(); err != nil {
 			t.Fatalf("watermarks.Flush() error = %v", err)
 		}
 	}
+	h.watermarks = nil
 }
 
 func springBootConfig(logDir, sinkPath, statePath string) *config.Config {
@@ -475,6 +493,36 @@ func buildHarnessReadiness(cfg *config.Config, recordSink sink.Sink, snapshot me
 		readiness.CheckSink = checker.Check
 	}
 	return readiness
+}
+
+func readPersistedWatermarkOffset(t *testing.T, statePath, logFile string) (int64, bool) {
+	t.Helper()
+
+	store, err := state.NewStore(statePath)
+	if err != nil {
+		t.Fatalf("NewStore(%q) error = %v", statePath, err)
+	}
+	entry, ok := store.Get(logFile)
+	if !ok {
+		return 0, false
+	}
+	return entry.Offset, true
+}
+
+func countSinkMessages(records []map[string]any, message string) int {
+	n := 0
+	for _, record := range records {
+		if msg, ok := record["message"].(string); ok && msg == message {
+			n++
+		}
+	}
+	return n
+}
+
+func debouncedTabLineConfig(logDir, sinkPath, statePath, flushInterval string) *config.Config {
+	cfg := tabLineConfig(logDir, sinkPath, statePath, "wrap", config.FilterConfig{})
+	cfg.Watch.State.FlushInterval = flushInterval
+	return cfg
 }
 
 func readWatermarkOffset(t *testing.T, statePath, logFile string) int64 {
