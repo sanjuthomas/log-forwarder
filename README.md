@@ -203,7 +203,9 @@ Use an absolute path in production so the file location does not depend on where
 1. **First run** — no watermark file exists (or no entry for a file). The forwarder tails from the **beginning** of the file.
 2. **After each committed parser event** — the in-memory watermark for that source file is updated to the event's byte offset (for multiline records, the end of the last physical line in that event). Filtered and transform-skipped lines advance the watermark too; only publish failures stall it. With `parser.type: multiline`, buffered continuation lines do not commit until the next header line or graceful shutdown — see [Multiline parser and watermarks](#multiline-parser-and-watermarks). The watermark file on disk is updated on the flush schedule (see above).
 3. **Restart** — if the file's inode matches the stored value, tailing **resumes from `offset`**. The log line `resuming file from watermark` indicates this.
-4. **Log rotation** — if the path is reused but the **inode changed** (typical after `logrotate`), the stored offset is ignored and the forwarder tails the new file from the **beginning**. The log line `tailing file from beginning` indicates this.
+4. **Log rotation** — if the path is reused but the **inode changed** (typical after `logrotate` with `create` or `rename`), the stored offset is ignored and the forwarder tails the new file from the **beginning**. The log line `tailing file from beginning` indicates this.
+
+**`copytruncate` rotation is not supported.** Some `logrotate` configs truncate the file in place (`copytruncate`) while keeping the same inode. The forwarder detects rotation by **inode change** only; it does not reset tail position when a file shrinks. With `copytruncate`, the forwarder may continue from a stale byte offset and **miss or mis-read** new content. Use `create` / `rename` rotation instead (rename the old file, create a new file at the same path). Integration test E2E-4 covers rename rotation only; see [`docs/integration-test-cases.txt`](docs/integration-test-cases.txt).
 
 **Operational notes:**
 
@@ -523,7 +525,7 @@ enrichers:
 | Field | Description |
 |-------|-------------|
 | `buffer_size` | Buffered channel size between watcher and pipeline (default `1024`) |
-| `on_full` | `block` (default) — watcher waits when the buffer is full; `drop` — discard new lines and increment `log_forwarder_pipeline_buffer_dropped` |
+| `on_full` | `block` (default) — watcher waits when the buffer is full; `drop` — discard new lines when the buffer is full (see [`on_full: drop` semantics](#pipelineon_full-block-vs-drop) below) |
 | `publish_timeout` | Per-attempt timeout for `sink.Publish` (default `0` = no limit). Applies to all sink types. |
 | `publish_retry.initial_backoff` | Delay before the first retry (default `1s`) |
 | `publish_retry.max_backoff` | Maximum delay between retries (default `30s`) |
@@ -571,6 +573,30 @@ pipeline:
 ```
 
 Sink-specific timeouts still apply where configured (for example `sink.http_noauth.timeout` for each HTTP round trip, `sink.kafka.connect_timeout` for startup checks).
+
+#### `pipeline.on_full`: block vs drop
+
+**Default to `block` in production.** Use `drop` only when permanent log loss under overload is acceptable.
+
+When the watcher → pipeline channel is full, behavior depends on `on_full`:
+
+| Mode | Watcher file offset | Line reaches pipeline | Watermark advances | Data in sink | Restart replays dropped bytes? |
+|------|---------------------|----------------------|--------------------|--------------|-------------------------------|
+| `block` | Advances when line is read | Yes (eventually) | Yes, after pipeline processes event | Yes (when publish succeeds) | N/A — no loss |
+| `drop` | Advances when line is read | **No** if buffer full | **No** for dropped lines | **No** | **No** — bytes are skipped forever |
+| Filter drop | N/A (pipeline layer) | Yes | **Yes** (intentional forward progress) | No | No (by design) |
+| Transform skip | N/A (pipeline layer) | Yes | **Yes** | No | No (by design) |
+| Publish failure | N/A | Yes | **No** (stalls) | No | **Yes** (retry after restart) |
+
+**`on_full: drop` is permanent data loss, not backpressure shedding.** The watcher reads each line and advances its in-memory file offset **before** attempting to enqueue the event. If the channel is full, the line is discarded (`log_forwarder_pipeline_buffer_dropped` increments; a debug log is emitted). Dropped lines never reach the parser, filter, or sink, and **never update watermarks**. On restart, tailing resumes from the last **processed** watermark — dropped bytes are not replayed.
+
+This differs from filter/transform drops, which are explicit forwarding decisions that still advance watermarks so tailing does not stall on noise. It also differs from publish failures, which stall watermarks so lines can be retried after restart.
+
+**Multiline caveat:** if a continuation line is dropped but later lines are accepted, multiline grouping can be corrupted (orphan lines, split stack traces).
+
+**Metrics:** `log_forwarder_lines_read` still increments for dropped lines, so a gap between `lines_read` and `lines_published` can be misdiagnosed as filter drops or transform skips. Alert separately on `rate(log_forwarder_pipeline_buffer_dropped[5m]) > 0` (see [What to alert on](#6-what-to-alert-on)).
+
+If sustained overload fills the buffer, prefer scaling the sink, increasing `buffer_size`, tuning publish batching, or fixing publish latency — not enabling `drop` — unless you explicitly accept gaps in forwarded logs.
 
 ### `metrics`
 
@@ -1255,7 +1281,8 @@ Other useful log lines:
 | Publish latency | `histogram_quantile(0.95, rate(log_forwarder_publish_duration_bucket[5m]))` high | Sink load, network latency, or slow endpoint |
 | Buffer backlog | `log_forwarder_pipeline_buffer_depth / log_forwarder_pipeline_buffer_capacity > 0.8` sustained | Pipeline slower than ingest; risk of backpressure |
 | No files watched | `log_forwarder_files_watched == 0` while logs are expected | Wrong watch paths, patterns, or permissions |
-| Read/publish gap | `rate(log_forwarder_lines_read[5m])` >> `rate(log_forwarder_lines_published[5m])` | Transform skips, filter drops, persistent publish failures, or pipeline stall |
+| Buffer drops | `rate(log_forwarder_pipeline_buffer_dropped[5m]) > 0` | `pipeline.on_full: drop` under overload — **permanent** log loss; not recoverable on restart |
+| Read/publish gap | `rate(log_forwarder_lines_read[5m])` >> `rate(log_forwarder_lines_published[5m])` | Transform skips, filter drops, buffer drops (`on_full: drop`), persistent publish failures, or pipeline stall |
 | High filter rate | `rate(log_forwarder_lines_filtered[5m])` high vs `lines_read` | Expected when filtering noisy logs; tune rules if too aggressive |
 | Memory growth | `process_memory_usage` or `go_memory_used` trending up without stabilizing | Possible leak or sustained backlog |
 | Process down | `/health` failing or scrape target `up == 0` | Crash, OOM kill, or misconfigured port |

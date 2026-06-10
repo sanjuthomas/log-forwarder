@@ -47,6 +47,10 @@ Log rotation:
 
 Confirm tailing continues on the new file (tailing file from beginning in logs).
 
+  copytruncate (logrotate in-place truncate, same inode) is NOT supported. The forwarder
+  detects rotation by inode change only. With copytruncate it may miss logs after rotation.
+  Use create/rename rotation instead (see README § Watermarks).
+
 Parse failures:
 
 Feed a line that does not match your regex with on_error: wrap -> _raw / _error records;
@@ -155,7 +159,9 @@ Security
 Capacity planning
 
   - pipeline.buffer_size (default 1024): under sustained overload, watcher blocks when full
-    (on_full: block)
+    (on_full: block). Do not enable on_full: drop in production unless permanent log loss
+    under overload is acceptable — dropped lines are not watermarked and are not replayed
+    on restart. Alert on rate(log_forwarder_pipeline_buffer_dropped[5m]) > 0 if drop is used.
   - Kafka: monitor topic lag and broker capacity
   - Regex + multiline on very high volume: profile CPU; consider simpler formats or JSON
     logging at the app

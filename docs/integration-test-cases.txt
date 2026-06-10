@@ -36,7 +36,9 @@ E2E-3 TestE2E_WatermarkResumeAfterRestart
 E2E-4 TestE2E_LogRotation
                                              Tail app.log, rotate (rename + new file),
                                              both before-rotate and after-rotate lines
-                                             appear in sink.
+                                             appear in sink. Does not cover copytruncate
+                                             (same inode, in-place truncate) — unsupported;
+                                             see README § Watermarks / log rotation.
 
 E2E-5 TestE2E_TransformOnErrorSkip
                                              Malformed line skipped; valid tab-delimited
@@ -261,10 +263,25 @@ kafka sink          KAFKA-1, manual M-1 (TLS/SASL)   KAFKA-1 (PLAINTEXT + filter
 docker file smoke   SMOKE-1        —
 
 
+OPERATOR NOTES (documented, not automated)
+------------------------------------------
+
+  - copytruncate log rotation (logrotate in-place truncate, same inode) is unsupported.
+    Use create/rename rotation. Documented in README § Watermarks / log rotation.
+
+  - pipeline.on_full: drop causes permanent log loss when the watcher→pipeline buffer is
+    full. Dropped lines do not reach the pipeline or watermarks and are not replayed on
+    restart. Default to block in production. Documented in README § pipeline.on_full.
+
+  - Alert on rate(log_forwarder_pipeline_buffer_dropped[5m]) > 0 when drop mode is enabled.
+
+
 COVERAGE GAPS (acceptable for v1)
 ---------------------------------
 
   - No test for pipeline buffer full / on_full: block backpressure
+  - No test for on_full: drop offset/watermark interaction (documented in README)
+  - No test for copytruncate rotation (unsupported; documented in README)
   - No test for multiple watch sources in one process
   - No test for custom registered parser/transform/sink
   - Metrics test does not assert exact counter values (presence only)

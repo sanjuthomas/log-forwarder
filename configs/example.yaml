@@ -48,7 +48,7 @@ enrichers:
 
 pipeline:
   buffer_size: 1024
-  on_full: block
+  on_full: block  # use block in production; drop causes permanent log loss when the buffer is full
   publish_timeout: 30s
   publish_retry:
     initial_backoff: 1s
