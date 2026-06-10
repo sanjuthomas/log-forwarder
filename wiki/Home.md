@@ -55,6 +55,7 @@ The [repository README](https://github.com/sanjuthomas/log-forwarder/blob/main/R
 | Pipeline overview | [[How It Works]] |
 | YAML config (overview) | [[Configuration Guide]] |
 | YAML config (full reference) | [[Configuration-Reference]] |
+| Config key catalog (what / when) | [[Config-Catalog]] |
 | Kafka, file, HTTP sinks | [[Choosing a Sink]] |
 | Spring Boot / multiline logs | [[Spring Boot Logs]] |
 | Watermarks, rotation, restarts | [[Watermarks and Restarts]] |

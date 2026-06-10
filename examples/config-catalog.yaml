@@ -1,0 +1,622 @@
+# Master catalog of example log-forwarder configuration files.
+#
+# Paths are relative to the repository root. Run any entry with:
+#   ./bin/log-forwarder -config <path>
+#
+# Each config entry lists operational settings explicitly set in that YAML file.
+# Omitted keys use built-in defaults (see `defaults` and `feature_index` below).
+#
+# Config key reference (what each key does, when to use it):
+#   https://github.com/sanjuthomas/log-forwarder/wiki/Config-Catalog
+#
+# Narrative configuration guide:
+#   https://github.com/sanjuthomas/log-forwarder/wiki/Configuration-Reference
+
+version: 2
+
+# Built-in defaults when a field is omitted from example configs.
+defaults:
+  watch:
+    poll: 1s
+    state_path: .log-forwarder/watermarks.json
+    flush_interval: 1s
+    flush_every: disabled
+  pipeline:
+    buffer_size: 1024  # line events (count), not bytes
+    on_full: block
+    publish_timeout: 0
+    publish_retry:
+      initial_backoff: 1s
+      max_backoff: 30s
+      max_attempts: 0
+    publish_batch:
+      max_bytes: 1048576
+      flush_interval: 100ms
+      on_flush_failure: hibernate
+      max_attempts: inherits publish_retry.max_attempts
+      hibernate:
+        wake_enabled: false
+        wake_interval: 10m
+      dead_letter:
+        max_consecutive_batches: 3
+    max_publish_bytes: 1048576
+    truncate_field: message
+  metrics:
+    enabled: false
+  logging:
+    level: info
+    format: text
+    status_interval: 30s
+
+# Maps operational capabilities to example configs that demonstrate them.
+# Empty `configs` means no dedicated example yet — see defaults / wiki.
+feature_index:
+  watermark_file:
+    description: watch.state.path — per-process tail offset and inode persistence
+    configs: [example, example-filter, example-docker-sidecar, example-docker-filter, example-docker-kafka, example-docker-kafka-deadletter]
+
+  watermark_flush_interval:
+    description: watch.state.flush_interval — debounced watermark disk persist (default 1s)
+    configs: []
+    notes: No example overrides; all use default 1s. Set flush_interval 0 for per-line persist.
+
+  watermark_flush_every:
+    description: watch.state.flush_every — count-based watermark flush
+    configs: []
+    notes: No dedicated example. See Configuration-Reference.
+
+  pipeline_buffer_size:
+    description: pipeline.buffer_size — watcher→pipeline queue depth in line events (count, not bytes)
+    configs: [example, example-filter, example-docker-sidecar, example-spring-boot-kafka, example-docker-kafka, example-docker-kafka-deadletter, example-docker-filter]
+
+  pipeline_buffer_size_small:
+    description: pipeline.buffer_size 64 — low-latency smoke / backpressure testing
+    configs: [example-docker-kafka, example-docker-kafka-deadletter, example-docker-filter]
+
+  pipeline_on_full_block:
+    description: pipeline.on_full block — watcher blocks when buffer full (production default)
+    configs: all
+
+  pipeline_on_full_drop:
+    description: pipeline.on_full drop — discard lines under overload (permanent data loss)
+    configs: []
+    notes: Not recommended for production. Documented in wiki; no example config.
+
+  publish_timeout:
+    description: pipeline.publish_timeout — per-attempt sink publish deadline
+    configs: [example]
+
+  publish_retry:
+    description: pipeline.publish_retry — exponential backoff on publish failure
+    configs: [example, example-docker-kafka, example-docker-kafka-deadletter]
+
+  publish_batch:
+    description: pipeline.publish_batch — byte/time buffered flush before sink
+    configs: [example-docker-kafka-deadletter]
+    notes: All other configs use default publish_batch (1 MiB / 100ms / hibernate on failure).
+
+  publish_batch_dead_letter:
+    description: pipeline.publish_batch.on_flush_failure dead_letter — spill failed batches to JSONL
+    configs: [example-docker-kafka-deadletter]
+
+  publish_batch_hibernate:
+    description: pipeline.publish_batch.on_flush_failure hibernate — stall ingest on batch failure
+    configs: []
+    notes: Default for all configs except example-docker-kafka-deadletter.
+
+  hibernate_wake:
+    description: pipeline.publish_batch.hibernate.wake_enabled — periodic retry while hibernating
+    configs: []
+    notes: No dedicated example. Default wake_enabled false (restart required).
+
+  max_publish_bytes_truncate:
+    description: pipeline.max_publish_bytes / truncate_field — fit oversized JSON before publish
+    configs: []
+    notes: All examples use default 1 MiB limit. See Configuration-Reference.
+
+  timestamp_normalization:
+    description: timestamp block — parse field to UTC RFC3339Nano
+    configs: [example-spring-boot-kafka, example-spring-boot-file, example-spring-boot-http-noauth]
+
+  metrics_http:
+    description: metrics.enabled — Prometheus /health /ready /deadletters HTTP server
+    configs: [example, example-filter, example-spring-boot-kafka, example-spring-boot-file, example-spring-boot-http-noauth, example-docker-sidecar, example-docker-filter, example-docker-kafka, example-docker-kafka-deadletter]
+
+  readiness_probe:
+    description: metrics.readiness — /ready sink check and buffer threshold
+    configs: [example-docker-filter, example-docker-kafka, example-docker-kafka-deadletter]
+
+  logging_file:
+    description: logging.file — forwarder diagnostic log to disk
+    configs: [example]
+
+  logging_status_interval:
+    description: logging.status_interval — periodic forwarder status to stderr/log file
+    configs: [example, example-docker-sidecar]
+
+  predicate_filter:
+    description: filter block — drop records before enrich/publish; watermark still advances
+    configs: [example-filter, example-docker-filter, example-docker-kafka, example-docker-kafka-deadletter]
+
+  multiline_parser:
+    description: parser.type multiline — stack traces as single records
+    configs: [example-spring-boot-kafka, example-spring-boot-file, example-spring-boot-http-noauth, example-docker-sidecar]
+
+  kafka_connect_timeout:
+    description: sink.kafka.connect_timeout — startup broker/topic check deadline
+    configs: [example-docker-kafka-deadletter]
+
+  kafka_security:
+    description: sink.kafka.security — TLS / SASL client modes
+    configs: [kafka-plaintext, kafka-ssl-server-auth, kafka-ssl-mtls, kafka-sasl-plaintext-plain, kafka-sasl-ssl-plain, kafka-sasl-ssl-scram-sha-256, kafka-sasl-ssl-scram-sha-512, kafka-sasl-ssl-oauthbearer, kafka-sasl-ssl-gssapi, example-docker-kafka, example-docker-kafka-deadletter]
+
+categories:
+  - id: general
+    name: General purpose
+  - id: spring-boot
+    name: Spring Boot / Logback console
+  - id: docker
+    name: Docker Compose smoke tests
+  - id: kafka-security
+    name: Kafka client security modes
+
+configs:
+  - id: example
+    path: configs/example.yaml
+    category: general
+    description: Full-featured starter — multiple watch sources, publish retry, logging file, metrics
+    sink: kafka
+    parser: line
+    transform: delimiter
+    settings:
+      watch:
+        state_path: .log-forwarder/watermarks.json
+        sources: 3
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+        publish_timeout: 30s
+        publish_retry:
+          initial_backoff: 1s
+          max_backoff: 30s
+          max_attempts: 0
+      logging:
+        file: /var/log/log-forwarder/forwarder.log
+        status_interval: 30s
+      metrics:
+        enabled: true
+        host: 127.0.0.1
+        port: 8080
+    features: [watermark_file, pipeline_buffer_size, pipeline_on_full_block, publish_timeout, publish_retry, metrics_http, logging_file, logging_status_interval]
+    tags: [starter, kafka, delimiter, retry]
+
+  - id: example-regex
+    path: configs/example-regex.yaml
+    category: general
+    description: Generic regex parsing to Kafka
+    sink: kafka
+    parser: line
+    transform: regex
+    settings:
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+    features: [pipeline_buffer_size, pipeline_on_full_block]
+    tags: [kafka, regex]
+
+  - id: example-file
+    path: configs/example-file.yaml
+    category: general
+    description: Tab-delimited logs to local JSONL
+    sink: file
+    parser: line
+    transform: delimiter
+    settings:
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+    features: [pipeline_buffer_size, pipeline_on_full_block]
+    tags: [file, delimiter]
+
+  - id: example-http-noauth
+    path: configs/example-http-noauth.yaml
+    category: general
+    description: Tab-delimited logs POSTed to an open HTTP ingest endpoint
+    sink: http-noauth
+    parser: line
+    transform: delimiter
+    settings:
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+    features: [pipeline_buffer_size, pipeline_on_full_block]
+    tags: [http-noauth, delimiter]
+
+  - id: example-filter
+    path: configs/example-filter.yaml
+    category: general
+    description: WARN/ERROR filter with file sink; used in integration tests
+    sink: file
+    parser: line
+    transform: delimiter
+    settings:
+      watch:
+        state_path: .log-forwarder/watermarks.json
+      filter:
+        match: any
+        levels: [WARN, ERROR]
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+      metrics:
+        enabled: true
+        port: 8080
+      logging:
+        status_interval: default
+    features: [watermark_file, predicate_filter, pipeline_buffer_size, pipeline_on_full_block, metrics_http, logging_status_interval]
+    tags: [file, filter, integration]
+
+  - id: example-spring-boot-kafka
+    path: configs/example-spring-boot-kafka.yaml
+    category: spring-boot
+    description: Spring Boot Logback multiline + regex to Kafka with UTC timestamp normalization
+    sink: kafka
+    parser: multiline
+    transform: regex
+    settings:
+      timestamp:
+        field: timestamp
+        format: "2006-01-02 15:04:05.000"
+        default_timezone: UTC
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+      metrics:
+        enabled: true
+        port: 10001
+    features: [multiline_parser, timestamp_normalization, pipeline_buffer_size, pipeline_on_full_block, metrics_http]
+    related: [example-spring-boot-file, example-spring-boot-http-noauth]
+    tags: [kafka, multiline, regex, spring-boot, timestamp]
+
+  - id: example-spring-boot-file
+    path: configs/example-spring-boot-file.yaml
+    category: spring-boot
+    description: Spring Boot Logback format to local JSONL
+    sink: file
+    parser: multiline
+    transform: regex
+    settings:
+      timestamp:
+        field: timestamp
+        format: "2006-01-02 15:04:05.000"
+        default_timezone: UTC
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+      metrics:
+        enabled: true
+        port: 8080
+    features: [multiline_parser, timestamp_normalization, pipeline_buffer_size, pipeline_on_full_block, metrics_http]
+    related: [example-spring-boot-kafka, example-spring-boot-http-noauth]
+    tags: [file, multiline, regex, spring-boot, timestamp]
+
+  - id: example-spring-boot-http-noauth
+    path: configs/example-spring-boot-http-noauth.yaml
+    category: spring-boot
+    description: Spring Boot Logback format to HTTP ingest
+    sink: http-noauth
+    parser: multiline
+    transform: regex
+    settings:
+      timestamp:
+        field: timestamp
+        format: "2006-01-02 15:04:05.000"
+        default_timezone: UTC
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+      metrics:
+        enabled: true
+        port: 8080
+    features: [multiline_parser, timestamp_normalization, pipeline_buffer_size, pipeline_on_full_block, metrics_http]
+    related: [example-spring-boot-kafka, example-spring-boot-file]
+    tags: [http-noauth, multiline, regex, spring-boot, timestamp]
+
+  - id: example-docker-sidecar
+    path: configs/example-docker-sidecar.yaml
+    category: docker
+    description: Sidecar layout — absolute watermark path, multiline Spring Boot regex, JSON logging
+    sink: file
+    parser: multiline
+    transform: regex
+    settings:
+      watch:
+        state_path: /state/watermarks.json
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+      metrics:
+        enabled: true
+        host: 0.0.0.0
+        port: 8080
+      logging:
+        format: json
+        status_interval: 30s
+    features: [watermark_file, multiline_parser, pipeline_buffer_size, pipeline_on_full_block, metrics_http, logging_status_interval]
+    docker_compose: docker-compose.yaml
+    tags: [docker, file, sidecar, multiline]
+
+  - id: example-docker-filter
+    path: configs/example-docker-filter.yaml
+    category: docker
+    description: ERROR-only filter smoke test — small buffer, readiness probe
+    sink: file
+    parser: line
+    transform: delimiter
+    settings:
+      watch:
+        state_path: /state/watermarks.json
+      filter:
+        match: all
+        levels: [ERROR]
+      pipeline:
+        buffer_size: 64
+        on_full: block
+      metrics:
+        enabled: true
+        host: 0.0.0.0
+        readiness:
+          sink_check: true
+          buffer_threshold: 0.8
+      logging:
+        format: json
+        status_interval: 0s
+    features: [watermark_file, predicate_filter, pipeline_buffer_size_small, pipeline_on_full_block, metrics_http, readiness_probe]
+    docker_compose: docker-compose.smoke.yaml
+    smoke_script: scripts/docker-smoke.sh
+    tags: [docker, file, filter, smoke, readiness]
+
+  - id: example-docker-kafka
+    path: configs/example-docker-kafka.yaml
+    category: docker
+    description: Kafka round-trip smoke — fast publish retry, readiness probe
+    sink: kafka
+    parser: line
+    transform: delimiter
+    settings:
+      watch:
+        state_path: /state/watermarks.json
+      filter:
+        match: all
+        levels: [ERROR]
+      pipeline:
+        buffer_size: 64
+        on_full: block
+        publish_retry:
+          initial_backoff: 100ms
+          max_backoff: 1s
+          max_attempts: 0
+      metrics:
+        enabled: true
+        host: 0.0.0.0
+        readiness:
+          sink_check: true
+          buffer_threshold: 0.8
+      logging:
+        format: json
+        status_interval: 0s
+      sink:
+        kafka_protocol: PLAINTEXT
+    features: [watermark_file, predicate_filter, pipeline_buffer_size_small, pipeline_on_full_block, publish_retry, metrics_http, readiness_probe, kafka_security]
+    docker_compose: docker-compose.kafka.yaml
+    smoke_script: scripts/kafka-smoke.sh
+    tags: [docker, kafka, filter, smoke, retry, readiness]
+
+  - id: example-docker-kafka-deadletter
+    path: configs/example-docker-kafka-deadletter.yaml
+    category: docker
+    description: Dead letter on batch flush failure — publish batch, bounded retry, /dlq spill
+    sink: kafka
+    parser: line
+    transform: delimiter
+    settings:
+      watch:
+        state_path: /state/watermarks.json
+        poll: 500ms
+      filter:
+        match: all
+        levels: [ERROR]
+      pipeline:
+        buffer_size: 64
+        on_full: block
+        publish_batch:
+          max_bytes: 1048576
+          flush_interval: 200ms
+          on_flush_failure: dead_letter
+          max_attempts: 2
+          dead_letter:
+            path: /dlq
+            max_consecutive_batches: 3
+        publish_retry:
+          initial_backoff: 100ms
+          max_backoff: 500ms
+          max_attempts: 2
+      metrics:
+        enabled: true
+        host: 0.0.0.0
+        readiness:
+          sink_check: true
+          buffer_threshold: 0.8
+      logging:
+        format: json
+        status_interval: 0s
+      sink:
+        kafka_protocol: PLAINTEXT
+        connect_timeout: 5s
+    features:
+      - watermark_file
+      - predicate_filter
+      - pipeline_buffer_size_small
+      - pipeline_on_full_block
+      - publish_retry
+      - publish_batch
+      - publish_batch_dead_letter
+      - metrics_http
+      - readiness_probe
+      - kafka_security
+      - kafka_connect_timeout
+    docker_compose: docker-compose.kafka-dlq.yaml
+    smoke_script: scripts/kafka-deadletter-smoke.sh
+    tags: [docker, kafka, dead-letter, publish-batch, retry, smoke]
+
+  - id: kafka-plaintext
+    path: examples/kafka/plaintext.yaml
+    category: kafka-security
+    description: Unencrypted Kafka for local development only
+    sink: kafka
+    parser: line
+    transform: delimiter
+    settings:
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+      sink:
+        kafka_protocol: PLAINTEXT
+    features: [pipeline_buffer_size, pipeline_on_full_block, kafka_security]
+    tags: [kafka, security, dev-only]
+
+  - id: kafka-ssl-server-auth
+    path: examples/kafka/ssl-server-auth.yaml
+    category: kafka-security
+    description: TLS with broker certificate verification
+    sink: kafka
+    parser: line
+    transform: delimiter
+    settings:
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+      sink:
+        kafka_protocol: SSL
+    features: [pipeline_buffer_size, pipeline_on_full_block, kafka_security]
+    tags: [kafka, security, tls]
+
+  - id: kafka-ssl-mtls
+    path: examples/kafka/ssl-mtls.yaml
+    category: kafka-security
+    description: Mutual TLS with client and broker certificates
+    sink: kafka
+    parser: line
+    transform: delimiter
+    settings:
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+      sink:
+        kafka_protocol: SSL
+        mtls: true
+    features: [pipeline_buffer_size, pipeline_on_full_block, kafka_security]
+    tags: [kafka, security, tls, mtls]
+
+  - id: kafka-sasl-plaintext-plain
+    path: examples/kafka/sasl-plaintext-plain.yaml
+    category: kafka-security
+    description: SASL PLAIN without encryption — development only
+    sink: kafka
+    parser: line
+    transform: delimiter
+    settings:
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+      sink:
+        kafka_protocol: SASL_PLAINTEXT
+        sasl_mechanism: PLAIN
+    features: [pipeline_buffer_size, pipeline_on_full_block, kafka_security]
+    tags: [kafka, security, sasl, dev-only]
+
+  - id: kafka-sasl-ssl-plain
+    path: examples/kafka/sasl-ssl-plain.yaml
+    category: kafka-security
+    description: SASL PLAIN over TLS; prefer SCRAM in production
+    sink: kafka
+    parser: line
+    transform: delimiter
+    settings:
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+      sink:
+        kafka_protocol: SASL_SSL
+        sasl_mechanism: PLAIN
+    features: [pipeline_buffer_size, pipeline_on_full_block, kafka_security]
+    tags: [kafka, security, sasl]
+
+  - id: kafka-sasl-ssl-scram-sha-256
+    path: examples/kafka/sasl-ssl-scram-sha-256.yaml
+    category: kafka-security
+    description: SASL SCRAM-SHA-256 over TLS
+    sink: kafka
+    parser: line
+    transform: delimiter
+    settings:
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+      sink:
+        kafka_protocol: SASL_SSL
+        sasl_mechanism: SCRAM-SHA-256
+    features: [pipeline_buffer_size, pipeline_on_full_block, kafka_security]
+    tags: [kafka, security, sasl, scram]
+
+  - id: kafka-sasl-ssl-scram-sha-512
+    path: examples/kafka/sasl-ssl-scram-sha-512.yaml
+    category: kafka-security
+    description: SASL SCRAM-SHA-512 over TLS — common production default
+    sink: kafka
+    parser: line
+    transform: delimiter
+    settings:
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+      sink:
+        kafka_protocol: SASL_SSL
+        sasl_mechanism: SCRAM-SHA-512
+    features: [pipeline_buffer_size, pipeline_on_full_block, kafka_security]
+    tags: [kafka, security, sasl, scram]
+
+  - id: kafka-sasl-ssl-oauthbearer
+    path: examples/kafka/sasl-ssl-oauthbearer.yaml
+    category: kafka-security
+    description: SASL OAUTHBEARER with static bearer token
+    sink: kafka
+    parser: line
+    transform: delimiter
+    settings:
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+      sink:
+        kafka_protocol: SASL_SSL
+        sasl_mechanism: OAUTHBEARER
+    features: [pipeline_buffer_size, pipeline_on_full_block, kafka_security]
+    tags: [kafka, security, sasl, oauth]
+
+  - id: kafka-sasl-ssl-gssapi
+    path: examples/kafka/sasl-ssl-gssapi.yaml
+    category: kafka-security
+    description: Kerberos (GSSAPI) reference config; sink auth not yet implemented
+    sink: kafka
+    parser: line
+    transform: delimiter
+    implementation_status: config-only
+    settings:
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+      sink:
+        kafka_protocol: SASL_SSL
+        sasl_mechanism: GSSAPI
+    features: [pipeline_buffer_size, pipeline_on_full_block, kafka_security]
+    tags: [kafka, security, sasl, kerberos]

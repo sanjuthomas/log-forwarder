@@ -5,6 +5,7 @@
 - [[How It Works]]
 - [[Configuration Guide]]
 - [[Configuration-Reference]]
+- [[Config-Catalog]]
 - [[Choosing a Sink]]
 - [[Spring Boot Logs]]
 - [[Watermarks and Restarts]]

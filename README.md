@@ -23,6 +23,7 @@ See [Installation and First Run](https://github.com/sanjuthomas/log-forwarder/wi
 | Pipeline overview | [How It Works](https://github.com/sanjuthomas/log-forwarder/wiki/How-It-Works) |
 | YAML config (overview) | [Configuration Guide](https://github.com/sanjuthomas/log-forwarder/wiki/Configuration-Guide) |
 | YAML config (full reference) | [Configuration-Reference](https://github.com/sanjuthomas/log-forwarder/wiki/Configuration-Reference) |
+| Config key catalog (what / when) | [Config-Catalog](https://github.com/sanjuthomas/log-forwarder/wiki/Config-Catalog) |
 | Kafka, file, HTTP sinks | [Choosing a Sink](https://github.com/sanjuthomas/log-forwarder/wiki/Choosing-a-Sink) |
 | Spring Boot / multiline logs | [Spring Boot Logs](https://github.com/sanjuthomas/log-forwarder/wiki/Spring-Boot-Logs) |
 | Watermarks, rotation, restarts | [Watermarks and Restarts](https://github.com/sanjuthomas/log-forwarder/wiki/Watermarks-and-Restarts) |
@@ -41,6 +42,7 @@ See [Installation and First Run](https://github.com/sanjuthomas/log-forwarder/wi
 | Path | Contents |
 |------|----------|
 | [`configs/`](configs/) | Example YAML configs |
+| [`examples/config-catalog.yaml`](examples/config-catalog.yaml) | Master list of all example configs |
 | [`examples/kafka/`](examples/kafka/) | Kafka security example configs |
 | [`examples/custom/`](examples/custom/) | Custom binary with registered extensions |
 | [`docs/integration-test-cases.txt`](docs/integration-test-cases.txt) | E2E test catalog |
