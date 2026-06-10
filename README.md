@@ -405,9 +405,29 @@ transform:
 
 Only the `sink` block differs between the three Spring Boot examples — parser, transform, enrichers, and optional filter are shared.
 
+### `timestamp`
+
+Optional normalization of the event time field **after transform, before filter**. Omit the block to leave transformed timestamps as opaque strings (default).
+
+| Field | Description |
+|-------|-------------|
+| `field` | Record key to parse (default `timestamp`) |
+| `format` | Optional Go reference time layout (e.g. `2006-01-02 15:04:05.000`). When empty, built-in layouts are tried: RFC3339/RFC3339Nano, `2006-01-02 15:04:05.000`, `2006-01-02 15:04:05` |
+| `default_timezone` | IANA zone for parsed times without an offset (default `UTC`) |
+| `output` | Normalized UTC format (v1: `rfc3339nano` only) |
+
+On success the configured field is replaced with UTC RFC3339Nano (e.g. `2026-06-08T15:15:23.456Z`). On parse failure (missing, empty, or unparseable value) the field is set to **processing time** (UTC), with `timestamp_raw` preserving the original string when present and `timestamp_source: processing`.
+
+```yaml
+timestamp:
+  field: timestamp
+  format: "2006-01-02 15:04:05.000"
+  default_timezone: UTC
+```
+
 ### `filter`
 
-Optional predicate-based filtering **after transform, before enrich**. Omit the entire block to pass all records (default).
+Optional predicate-based filtering **after timestamp normalization, before enrich**. Omit the entire block to pass all records (default).
 
 Filtered records are **not** enriched or published. Watermarks still advance so tailing does not stall. Each filtered record increments `log_forwarder_lines_filtered`.
 
@@ -1170,6 +1190,7 @@ Other useful log lines:
 | `log_forwarder_lines_skipped` | Lines dropped (`transform.on_error: skip`) |
 | `log_forwarder_pipeline_buffer_dropped` | Lines dropped when `pipeline.on_full: drop` and buffer is full |
 | `log_forwarder_transform_errors` | Transform failures |
+| `log_forwarder_timestamp_parse_failures` | Records that fell back to processing time during timestamp normalization |
 | `log_forwarder_publish_failures` | Failed sink publish attempts |
 | `log_forwarder_publish_truncations` | Records truncated to fit `pipeline.max_publish_bytes` |
 | `log_forwarder_publish_retries` | Retries after a publish failure |

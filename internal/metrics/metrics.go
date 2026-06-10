@@ -34,6 +34,7 @@ type Collector struct {
 	linesFiltered        metric.Int64Counter
 	bufferDropped        metric.Int64Counter
 	transformErrors      metric.Int64Counter
+	timestampParseFailed metric.Int64Counter
 	publishFailures      metric.Int64Counter
 	publishRetries       metric.Int64Counter
 	publishTruncations   metric.Int64Counter
@@ -197,6 +198,15 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		return nil, err
 	}
 
+	timestampParseFailed, err := meter.Int64Counter(
+		"log_forwarder.timestamp.parse_failures",
+		metric.WithDescription("Total number of records that fell back to processing time during timestamp normalization."),
+		metric.WithUnit("{record}"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	publishFailures, err := meter.Int64Counter(
 		"log_forwarder.publish.failures",
 		metric.WithDescription("Total number of failed sink publish attempts."),
@@ -280,6 +290,7 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		linesFiltered:        linesFiltered,
 		bufferDropped:        bufferDropped,
 		transformErrors:      transformErrors,
+		timestampParseFailed: timestampParseFailed,
 		publishFailures:      publishFailures,
 		publishRetries:       publishRetries,
 		publishTruncations:   publishTruncations,
@@ -366,6 +377,13 @@ func (c *Collector) RecordTransformError(ctx context.Context) {
 		return
 	}
 	c.transformErrors.Add(ctx, 1)
+}
+
+func (c *Collector) RecordTimestampParseFailure(ctx context.Context) {
+	if c == nil || c.timestampParseFailed == nil {
+		return
+	}
+	c.timestampParseFailed.Add(ctx, 1)
 }
 
 func (c *Collector) RecordPublishFailure(ctx context.Context) {

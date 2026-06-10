@@ -13,6 +13,7 @@ import (
 	"github.com/sanjuthomas/log-forwarder/internal/parser"
 	"github.com/sanjuthomas/log-forwarder/internal/sink"
 	"github.com/sanjuthomas/log-forwarder/internal/state"
+	"github.com/sanjuthomas/log-forwarder/internal/timestamp"
 	"github.com/sanjuthomas/log-forwarder/internal/transform"
 	"github.com/sanjuthomas/log-forwarder/internal/watcher"
 )
@@ -22,6 +23,7 @@ type Pipeline struct {
 	cfg         *config.Config
 	parser      parser.Parser
 	transformer transform.Transformer
+	normalizer  *timestamp.Normalizer
 	filter      filter.Predicate
 	enrichers   []enrich.Enricher
 	sink        sink.Sink
@@ -48,6 +50,10 @@ func New(cfg *config.Config, s sink.Sink, logger *slog.Logger, opts Options) (*P
 	if err != nil {
 		return nil, err
 	}
+	normalizer, err := timestamp.New(cfg.Timestamp)
+	if err != nil {
+		return nil, err
+	}
 	f, err := filter.New(cfg.Filter)
 	if err != nil {
 		return nil, err
@@ -56,6 +62,7 @@ func New(cfg *config.Config, s sink.Sink, logger *slog.Logger, opts Options) (*P
 		cfg:         cfg,
 		parser:      p,
 		transformer: t,
+		normalizer:  normalizer,
 		filter:      f,
 		enrichers:   chain,
 		sink:        s,
@@ -123,6 +130,15 @@ func (p *Pipeline) process(ctx context.Context, event parser.Event) error {
 
 	if !skipPublish {
 		record["_path"] = event.Path
+		if p.normalizer != nil {
+			if failed := p.normalizer.Normalize(record); failed {
+				p.metrics.RecordTimestampParseFailure(ctx)
+				p.logger.Debug("timestamp parse failed, using processing time",
+					"path", event.Path,
+					"field", p.cfg.Timestamp.FieldOrDefault(),
+				)
+			}
+		}
 		if !p.filter.Match(record) {
 			p.metrics.RecordLineFiltered(ctx)
 		} else {
