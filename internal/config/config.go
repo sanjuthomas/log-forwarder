@@ -15,6 +15,7 @@ type Config struct {
 	Parser     ParserConfig     `yaml:"parser"`
 	Transform  TransformConfig  `yaml:"transform"`
 	Enrichers  []EnricherConfig `yaml:"enrichers"`
+	Filter     FilterConfig     `yaml:"filter,omitempty"`
 	Pipeline   PipelineConfig   `yaml:"pipeline"`
 	Logging    LoggingConfig    `yaml:"logging"`
 	Metrics    MetricsConfig    `yaml:"metrics"`
@@ -170,6 +171,9 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if err := c.validateEnrichers(); err != nil {
+		return err
+	}
+	if err := c.validateFilter(); err != nil {
 		return err
 	}
 	if err := c.validatePipeline(); err != nil {
