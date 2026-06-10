@@ -16,6 +16,7 @@ type Config struct {
 	Transform  TransformConfig  `yaml:"transform"`
 	Enrichers  []EnricherConfig `yaml:"enrichers"`
 	Filter     FilterConfig     `yaml:"filter,omitempty"`
+	Timestamp  TimestampConfig  `yaml:"timestamp,omitempty"`
 	Pipeline   PipelineConfig   `yaml:"pipeline"`
 	Logging    LoggingConfig    `yaml:"logging"`
 	Metrics    MetricsConfig    `yaml:"metrics"`
@@ -171,6 +172,9 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if err := c.validateTransform(); err != nil {
+		return err
+	}
+	if err := c.validateTimestamp(); err != nil {
 		return err
 	}
 	if err := c.validateEnrichers(); err != nil {

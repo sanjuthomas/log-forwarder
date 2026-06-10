@@ -30,6 +30,11 @@ transform:
   pattern: '^(?s)(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\S+)\s+(?P<pid>\d+)\s+---\s+\[\s*(?P<thread>[^\]]+?)\s*\]\s+(?P<logger>\S+)\s+:\s+(?P<message>.*)$'
   on_error: wrap
 
+timestamp:
+  field: timestamp
+  format: "2006-01-02 15:04:05.000"
+  default_timezone: UTC
+
 enrichers:
   - type: static
     fields:
