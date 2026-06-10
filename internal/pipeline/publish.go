@@ -50,7 +50,7 @@ func (p *Pipeline) flushItems(ctx context.Context, items []pendingPublish, reaso
 
 	if err := p.publishAndAdvance(ctx, items); err != nil {
 		if p.batchEnabled && p.cfg.Pipeline.PublishBatch.OnFlushFailureOrDefault() == config.OnFlushFailureHibernate {
-			p.enterHibernate(ctx, err)
+			p.enterHibernate(ctx, err, items)
 			p.metrics.RecordPublishBatchFlush(ctx, reason, "hibernate", len(items), batchBytes)
 			return nil
 		}
@@ -58,6 +58,7 @@ func (p *Pipeline) flushItems(ctx context.Context, items []pendingPublish, reaso
 		return err
 	}
 
+	p.exitHibernate()
 	p.metrics.RecordPublishBatchFlush(ctx, reason, "success", len(items), batchBytes)
 	return nil
 }

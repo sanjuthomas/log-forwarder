@@ -18,13 +18,34 @@ const (
 	DefaultPublishBatchMaxBytes      = 1048576
 	DefaultPublishBatchFlushInterval = 100 * time.Millisecond
 	OnFlushFailureHibernate          = "hibernate"
+	DefaultHibernateWakeInterval     = 10 * time.Minute
 )
 
+type HibernateConfig struct {
+	WakeEnabled  bool   `yaml:"wake_enabled"`
+	WakeInterval string `yaml:"wake_interval"`
+}
+
+func (c HibernateConfig) WakeIntervalDuration() time.Duration {
+	if c.WakeInterval == "" {
+		return DefaultHibernateWakeInterval
+	}
+	if c.WakeInterval == "0" {
+		return 0
+	}
+	d, err := time.ParseDuration(c.WakeInterval)
+	if err != nil {
+		return DefaultHibernateWakeInterval
+	}
+	return d
+}
+
 type PublishBatchConfig struct {
-	MaxBytes       int    `yaml:"max_bytes"`
-	FlushInterval  string `yaml:"flush_interval"`
-	OnFlushFailure string `yaml:"on_flush_failure"`
-	MaxAttempts    int    `yaml:"max_attempts"`
+	MaxBytes       int             `yaml:"max_bytes"`
+	FlushInterval  string          `yaml:"flush_interval"`
+	OnFlushFailure string          `yaml:"on_flush_failure"`
+	MaxAttempts    int             `yaml:"max_attempts"`
+	Hibernate      HibernateConfig `yaml:"hibernate"`
 }
 
 func (c PublishBatchConfig) OnFlushFailureOrDefault() string {
@@ -187,6 +208,16 @@ func (c *Config) validatePipeline() error {
 	case OnFlushFailureHibernate:
 	default:
 		return fmt.Errorf("pipeline.publish_batch.on_flush_failure must be hibernate")
+	}
+
+	hibernate := c.Pipeline.PublishBatch.Hibernate
+	if hibernate.WakeInterval != "" && hibernate.WakeInterval != "0" {
+		if _, err := time.ParseDuration(hibernate.WakeInterval); err != nil {
+			return fmt.Errorf("pipeline.publish_batch.hibernate.wake_interval: %w", err)
+		}
+	}
+	if hibernate.WakeEnabled && hibernate.WakeIntervalDuration() <= 0 {
+		return fmt.Errorf("pipeline.publish_batch.hibernate.wake_interval must be positive when wake_enabled is true")
 	}
 
 	return nil
