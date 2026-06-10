@@ -153,6 +153,26 @@ These could be automated later with docker-compose or testcontainers:
   - File sink concurrent rotation under poll interval stress
 
 
+MULTILINE PARSER AND WATERMARKS (operator notes)
+------------------------------------------------
+
+Documented in README § Multiline parser and watermarks. Summary:
+
+  - Multiline records commit on the next start_pattern line or graceful shutdown.
+  - Watermarks advance per committed parser event, not per physical line read.
+  - The stored offset is the end of the last line in the committed record.
+  - Buffered continuation lines are read from disk but do not publish or advance
+    the watermark until commit.
+  - Trailing stack traces at EOF need a following header line or shutdown flush.
+
+Test workarounds:
+
+  - E2E-2 appends a flush-sentinel header line so the ERROR stack trace commits.
+  - E2E-3 uses parser.type: line so each line commits immediately for restart tests.
+  - waitForRecordCountFlush (harness) stops the forwarder on timeout to flush the
+    multiline parser buffer during tests.
+
+
 TEST MATRIX (sink x parser)
 ---------------------------
 
