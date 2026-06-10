@@ -88,6 +88,61 @@ E2E-16 TestE2E_WatermarkResumesWithoutDuplicateAfterPublishFailure
                                              watermark unchanged during failure; recovery
                                              publishes line two only (no duplicate line one).
 
+E2E-17 TestE2E_DoubleBufferBurstWithSlowSink
+                                             Publish batch enabled with small max_bytes;
+                                             slow file sink; 12-line burst completes with
+                                             double-buffer overlap (async flush while ingest
+                                             continues).
+
+E2E-18 TestE2E_HibernateOnPublishBatchFailure
+                                             Always-failing sink with publish_batch +
+                                             on_flush_failure: hibernate; /ready NOT_READY
+                                             (sink_hibernating); /health still 200.
+
+E2E-19 TestE2E_DeadLetterOnPublishFailure
+                                             dead_letter mode with failing sink: JSONL batch
+                                             on disk, watermark advanced, consecutive DLQ
+                                             counter incremented, forwarder not hibernating.
+
+
+AUTOMATED — Publish batch unit tests (internal/pipeline)
+--------------------------------------------------------
+
+ID    Test name                              Scenario
+--    ---------                              --------
+PB-1  TestPublishFlusherAsyncOverlapUnderBurst
+                                             Double buffer: ingest continues while async
+                                             flush is in flight.
+
+PB-2  TestPublishFlusherBlocksWhenActiveFullDuringFlush
+                                             Backpressure when active buffer is full and
+                                             flush is still running.
+
+PB-3  TestPipelineHibernatesAfterBatchFlushFailure
+                                             Batch flush failure enters hibernate; watermark
+                                             stalled.
+
+PB-4  TestHibernateWakeRetriesAndRecovers (hibernate_wake_test.go)
+                                             wake_enabled retries stalled batch and exits
+                                             hibernate on success.
+
+PB-5  TestDeadLetterAdvancesWatermarkOnFlushFailure
+                                             dead_letter mode writes JSONL and advances
+                                             watermark when sink publish fails.
+
+PB-6  TestDeadLetterHibernatesAtConsecutiveLimit
+                                             Consecutive dead-letter batches without sink
+                                             success transition to hibernate.
+
+PB-7  TestDeadLetterWatermarkStalledOnWriteFailure
+                                             Dead letter disk write fails: watermark not
+                                             advanced, no hibernate.
+
+PB-8  TestPipelineSyncPublishSkipsBatchFailurePolicies
+                                             publish_batch disabled (sync publish): flush
+                                             failure policies (hibernate/dead_letter) do not
+                                             apply; Run returns error instead.
+
 
 AUTOMATED — Configuration
 -------------------------
@@ -112,7 +167,8 @@ KAFKA-2 scripts/kafka-deadletter-smoke.sh (CI with KAFKA-1)
 
 DLQ-1  TestE2E_DeadLettersEndpointMetadata
                                              In-process forwarder with metrics: GET /deadletters
-                                             returns batch metadata after dead letter write.
+                                             returns batch metadata after dead letter write;
+                                             response does not include record bodies.
 
 SMOKE-1 scripts/docker-smoke.sh
                                              docker-compose.smoke.yaml file-sink stack with
@@ -188,7 +244,7 @@ TEST MATRIX (sink x parser)
 ---------------------------
 
                     line parser    multiline parser
-file sink           E2E-5,6,10-14  E2E-1,2,3,4
+file sink           E2E-5,6,10-19  E2E-1,2,3,4
 http-noauth sink    E2E-7          (same as E2E-1 pattern — add if needed)
 kafka sink          KAFKA-1, manual M-1 (TLS/SASL)   KAFKA-1 (PLAINTEXT + filter)
 docker file smoke   SMOKE-1        —

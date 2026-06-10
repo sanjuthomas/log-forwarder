@@ -15,6 +15,53 @@ import (
 	"github.com/sanjuthomas/log-forwarder/internal/watcher"
 )
 
+func TestDeadLetterWatermarkStalledOnWriteFailure(t *testing.T) {
+	dlqPath := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(dlqPath, []byte("blocked"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	watermarks, err := state.NewStore(filepath.Join(t.TempDir(), "watermarks.json"))
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	cfg := deadLetterPipelineConfig(dlqPath, 10)
+	sink := &flakySink{failures: 100}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pipe, err := New(cfg, sink, logger, Options{Watermarks: watermarks})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	const path = "/tmp/test.log"
+	lines := make(chan watcher.LineEvent, 1)
+	lines <- watcher.LineEvent{
+		Path:   path,
+		Line:   []byte("2024-01-01T00:00:00Z\tINFO\tdlq-write-fail"),
+		Offset: 42,
+		Inode:  1,
+	}
+	close(lines)
+
+	if err := pipe.Run(context.Background(), lines); err == nil {
+		t.Fatal("expected dead letter write failure")
+	}
+	if _, ok := watermarks.Get(path); ok {
+		t.Fatal("watermark must not advance when dead letter write fails")
+	}
+	info, err := os.Stat(dlqPath)
+	if err != nil {
+		t.Fatalf("Stat(dlq path) error = %v", err)
+	}
+	if info.IsDir() {
+		t.Fatal("dead letter path must not become a directory when write fails")
+	}
+	if pipe.Hibernating() {
+		t.Fatal("expected not to hibernate when dead letter write fails")
+	}
+}
+
 func TestDeadLetterAdvancesWatermarkOnFlushFailure(t *testing.T) {
 	dlqDir := t.TempDir()
 	watermarks, err := state.NewStore(filepath.Join(t.TempDir(), "watermarks.json"))
