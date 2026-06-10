@@ -55,6 +55,16 @@ Config: `configs/example-docker-kafka.yaml` (PLAINTEXT broker `kafka:9092`, ERRO
 
 CI: **Kafka smoke** runs on every pull request to `main` and is required before merge.
 
+## Kafka dead letter smoke test
+
+Verifies `on_flush_failure: dead_letter` against a real Kafka sink: startup passes while Kafka is up, Kafka is stopped, a new log line fails to publish and is written to `/dlq`, and the line does not appear on the topic after Kafka restarts.
+
+```bash
+./scripts/kafka-deadletter-smoke.sh
+```
+
+Stack (`docker-compose.kafka-dlq.yaml`): same Kafka services plus a `log-forwarder` using `configs/example-docker-kafka-deadletter.yaml` and a writable `/dlq` volume. Tails `docker/sample-data/kafka-dlq-smoke.log` (empty at test start).
+
 ## Pull and run
 
 ```bash

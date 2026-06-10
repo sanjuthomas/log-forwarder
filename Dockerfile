@@ -25,8 +25,8 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates su-exec \
     && addgroup -g 65532 -S forwarder \
     && adduser -u 65532 -S -G forwarder forwarder \
-    && mkdir -p /state /output \
-    && chown forwarder:forwarder /state /output
+    && mkdir -p /state /output /dlq \
+    && chown forwarder:forwarder /state /output /dlq
 
 COPY --from=build /out/log-forwarder /usr/local/bin/log-forwarder
 COPY docker/entrypoint.sh /entrypoint.sh

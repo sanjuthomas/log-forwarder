@@ -1010,6 +1010,7 @@ See [`docs/integration-test-cases.txt`](docs/integration-test-cases.txt) for the
 ```bash
 ./scripts/docker-smoke.sh    # file sink + ERROR-only filter
 ./scripts/kafka-smoke.sh     # Kafka round-trip + ERROR-only filter
+./scripts/kafka-deadletter-smoke.sh  # Kafka publish failure → dead letter JSONL
 ```
 
 ### End-to-end test with Kafka
@@ -1216,7 +1217,7 @@ Other useful log lines:
 | `log_forwarder_timestamp_parse_failures` | Records that fell back to processing time during timestamp normalization |
 | `log_forwarder_publish_failures` | Failed sink publish attempts |
 | `log_forwarder_publish_truncations` | Records truncated to fit `pipeline.max_publish_bytes` |
-| `log_forwarder_publish_batch_flushes` | Publish buffer flushes (`reason`: `size`, `timer`, `shutdown`, `wake`; `result`: `success`, `hibernate`, `error`) |
+| `log_forwarder_publish_batch_flushes` | Publish buffer flushes (`reason`: `size`, `timer`, `shutdown`, `wake`; `result`: `success`, `hibernate`, `dead_letter`, `error`) |
 | `log_forwarder_publish_hibernating` | `1` when the forwarder is in sink hibernate mode after a failed batch flush |
 | `log_forwarder_publish_dead_letter_batches` | Publish batches written to dead letter storage |
 | `log_forwarder_publish_consecutive_dlq_batches` | Consecutive dead-letter batches without a successful sink publish |
@@ -1345,6 +1346,7 @@ docker-compose.smoke.yaml  Filter smoke test stack (file sink, ERROR-only)
 docker-compose.kafka.yaml  Kafka round-trip smoke test stack
 scripts/docker-smoke.sh    Automated file-sink filter verification
 scripts/kafka-smoke.sh     Automated Kafka publish/consume verification
+scripts/kafka-deadletter-smoke.sh  Kafka sink failure → dead letter spill + metrics
 examples/custom/       Custom binary with registered extensions
 internal/
   config/              YAML loading and validation

@@ -21,5 +21,6 @@ jobs:
 
       - name: Run Kafka smoke test
         run: |
-          chmod +x scripts/kafka-smoke.sh
+          chmod +x scripts/kafka-smoke.sh scripts/kafka-deadletter-smoke.sh
           ./scripts/kafka-smoke.sh
+          ./scripts/kafka-deadletter-smoke.sh
