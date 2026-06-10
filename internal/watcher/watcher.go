@@ -37,8 +37,9 @@ type Watcher struct {
 	metrics    *metrics.Collector
 	logger     *slog.Logger
 
-	mu    sync.Mutex
-	files map[string]*fileState
+	runCtx context.Context
+	mu     sync.Mutex
+	files  map[string]*fileState
 }
 
 type fileState struct {
@@ -73,6 +74,9 @@ func (w *Watcher) FileCount() int {
 }
 
 func (w *Watcher) Run(ctx context.Context) error {
+	w.runCtx = ctx
+	defer func() { w.runCtx = nil }()
+
 	fsWatcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return fmt.Errorf("create fs watcher: %w", err)
@@ -253,12 +257,14 @@ func (w *Watcher) readNewLines(state *fileState) error {
 			state.offset += int64(len(line))
 			if trimmed != "" {
 				w.metrics.RecordLineRead(context.Background(), 1)
-				w.sendLineEvent(LineEvent{
+				if !w.sendLineEvent(LineEvent{
 					Path:   state.path,
 					Line:   []byte(trimmed),
 					Offset: state.offset,
 					Inode:  state.inode,
-				})
+				}) {
+					return nil
+				}
 			}
 		}
 		if err != nil {
@@ -270,7 +276,9 @@ func (w *Watcher) readNewLines(state *fileState) error {
 	}
 }
 
-func (w *Watcher) sendLineEvent(event LineEvent) {
+// sendLineEvent enqueues a line for the pipeline. It returns false when shutdown
+// was signaled while waiting on a full buffer in block mode.
+func (w *Watcher) sendLineEvent(event LineEvent) bool {
 	if w.onFull == "drop" {
 		select {
 		case w.lines <- event:
@@ -278,9 +286,18 @@ func (w *Watcher) sendLineEvent(event LineEvent) {
 			w.metrics.RecordLineBufferDropped(context.Background())
 			w.logger.Debug("dropping line, pipeline buffer full", "path", event.Path)
 		}
-		return
+		return true
 	}
-	w.lines <- event
+	if w.runCtx == nil {
+		w.lines <- event
+		return true
+	}
+	select {
+	case w.lines <- event:
+		return true
+	case <-w.runCtx.Done():
+		return false
+	}
 }
 
 func (w *Watcher) closeAll() {

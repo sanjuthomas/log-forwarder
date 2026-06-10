@@ -2,6 +2,7 @@ package watcher
 
 import (
 	"bufio"
+	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -370,6 +371,46 @@ func TestSendLineEventBlock(t *testing.T) {
 	<-done
 	if got := len(lines); got != 1 {
 		t.Fatalf("buffer len = %d, want 1", got)
+	}
+}
+
+func TestSendLineEventBlockUnblocksOnShutdown(t *testing.T) {
+	t.Parallel()
+
+	lines := make(chan LineEvent, 1)
+	lines <- LineEvent{Path: "/tmp/app.log", Line: []byte("filled")}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	w := &Watcher{
+		onFull:  "block",
+		lines:   lines,
+		runCtx:  ctx,
+		metrics: &metrics.Collector{},
+		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	done := make(chan bool, 1)
+	go func() {
+		done <- w.sendLineEvent(LineEvent{Path: "/tmp/app.log", Line: []byte("blocked")})
+	}()
+
+	select {
+	case <-done:
+		t.Fatal("expected block mode to wait on full buffer")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	cancel()
+
+	select {
+	case ok := <-done:
+		if ok {
+			t.Fatal("expected sendLineEvent to return false on shutdown")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for sendLineEvent to unblock on shutdown")
 	}
 }
 

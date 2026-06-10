@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"log/slog"
 	"os"
@@ -136,13 +137,25 @@ func main() {
 	}
 	logger.Info("log forwarder started", startAttrs...)
 
-	if err := <-errCh; err != nil && err != context.Canceled {
+	if err := waitForRunners(errCh); err != nil {
 		logger.Error("forwarder stopped", "error", err)
 		os.Exit(1)
 	}
 
 	close(lines)
 	logger.Info("log forwarder stopped")
+}
+
+func waitForRunners(errCh <-chan error) error {
+	var first error
+	for i := 0; i < 2; i++ {
+		if err := <-errCh; err != nil && !errors.Is(err, context.Canceled) {
+			if first == nil {
+				first = err
+			}
+		}
+	}
+	return first
 }
 
 func checkSinkAtStartup(s sink.Sink, cfg *config.Config) error {
