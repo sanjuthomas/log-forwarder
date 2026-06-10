@@ -386,3 +386,26 @@ func buildHarnessReadiness(cfg *config.Config, recordSink sink.Sink, snapshot me
 	}
 	return readiness
 }
+
+func readWatermarkOffset(t *testing.T, statePath, logFile string) int64 {
+	t.Helper()
+
+	store, err := state.NewStore(statePath)
+	if err != nil {
+		t.Fatalf("NewStore(%q) error = %v", statePath, err)
+	}
+	entry, ok := store.Get(logFile)
+	if !ok {
+		t.Fatalf("expected watermark entry for %q", logFile)
+	}
+	return entry.Offset
+}
+
+func watermarkEntryExists(statePath, logFile string) (bool, error) {
+	store, err := state.NewStore(statePath)
+	if err != nil {
+		return false, err
+	}
+	_, ok := store.Get(logFile)
+	return ok, nil
+}
