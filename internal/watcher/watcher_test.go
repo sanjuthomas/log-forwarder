@@ -1,13 +1,343 @@
 package watcher
 
 import (
+	"bufio"
 	"io"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/sanjuthomas/log-forwarder/internal/config"
 	"github.com/sanjuthomas/log-forwarder/internal/metrics"
+	"github.com/sanjuthomas/log-forwarder/internal/state"
 )
+
+func newTestWatcher(t *testing.T, lines chan LineEvent, watermarks *state.Store, watch config.WatchConfig) *Watcher {
+	t.Helper()
+
+	cfg := config.Default()
+	cfg.Watch = watch
+	return New(cfg, lines, watermarks, &metrics.Collector{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
+
+func openFileState(t *testing.T, path string) *fileState {
+	t.Helper()
+
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	inode, err := fileInode(path)
+	if err != nil {
+		t.Fatalf("fileInode() error = %v", err)
+	}
+	return &fileState{
+		path:   path,
+		file:   f,
+		reader: bufio.NewReader(f),
+		inode:  inode,
+	}
+}
+
+func drainLineEvents(lines <-chan LineEvent) []LineEvent {
+	var events []LineEvent
+	for {
+		select {
+		case event := <-lines:
+			events = append(events, event)
+		default:
+			return events
+		}
+	}
+}
+
+func TestInitialOffset_ResumeFromMatchingWatermark(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "app.log")
+	if err := os.WriteFile(logPath, []byte("data\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	inode, err := fileInode(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := state.NewStore(filepath.Join(dir, "watermarks.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Set(logPath, 5, inode); err != nil {
+		t.Fatal(err)
+	}
+
+	w := newTestWatcher(t, make(chan LineEvent), store, config.WatchConfig{})
+	offset, resumed := w.initialOffset(logPath, inode)
+	if !resumed {
+		t.Fatal("expected resume from watermark")
+	}
+	if offset != 5 {
+		t.Fatalf("offset = %d, want 5", offset)
+	}
+}
+
+func TestInitialOffset_ResetOnInodeChange(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "app.log")
+	if err := os.WriteFile(logPath, []byte("data\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	inode, err := fileInode(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := state.NewStore(filepath.Join(dir, "watermarks.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Set(logPath, 5, inode+999); err != nil {
+		t.Fatal(err)
+	}
+
+	w := newTestWatcher(t, make(chan LineEvent), store, config.WatchConfig{})
+	offset, resumed := w.initialOffset(logPath, inode)
+	if resumed {
+		t.Fatal("expected no resume when inode changed")
+	}
+	if offset != 0 {
+		t.Fatalf("offset = %d, want 0", offset)
+	}
+}
+
+func TestInitialOffset_NoWatermarkStore(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "app.log")
+	if err := os.WriteFile(logPath, []byte("data\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	inode, err := fileInode(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := newTestWatcher(t, make(chan LineEvent), nil, config.WatchConfig{})
+	offset, resumed := w.initialOffset(logPath, inode)
+	if resumed || offset != 0 {
+		t.Fatalf("offset = %d resumed = %v, want 0 false", offset, resumed)
+	}
+}
+
+func TestInitialOffset_MissingEntry(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "app.log")
+	if err := os.WriteFile(logPath, []byte("data\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	inode, err := fileInode(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := state.NewStore(filepath.Join(dir, "watermarks.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := newTestWatcher(t, make(chan LineEvent), store, config.WatchConfig{})
+	offset, resumed := w.initialOffset(logPath, inode)
+	if resumed || offset != 0 {
+		t.Fatalf("offset = %d resumed = %v, want 0 false", offset, resumed)
+	}
+}
+
+func TestReadNewLines_EmptyLineAdvancesOffsetNoEvent(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "app.log")
+	content := "line-one\n\nline-two\n"
+	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	lines := make(chan LineEvent, 4)
+	w := newTestWatcher(t, lines, nil, config.WatchConfig{})
+	state := openFileState(t, logPath)
+	if err := w.readNewLines(state); err != nil {
+		t.Fatalf("readNewLines() error = %v", err)
+	}
+
+	events := drainLineEvents(lines)
+	if len(events) != 2 {
+		t.Fatalf("len(events) = %d, want 2", len(events))
+	}
+	if string(events[0].Line) != "line-one" || string(events[1].Line) != "line-two" {
+		t.Fatalf("events = %q and %q", events[0].Line, events[1].Line)
+	}
+	if state.offset != int64(len(content)) {
+		t.Fatalf("state.offset = %d, want %d", state.offset, len(content))
+	}
+}
+
+func TestReadNewLines_EventMetadata(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "app.log")
+	line := "hello\n"
+	if err := os.WriteFile(logPath, []byte(line), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	lines := make(chan LineEvent, 1)
+	w := newTestWatcher(t, lines, nil, config.WatchConfig{})
+	state := openFileState(t, logPath)
+	if err := w.readNewLines(state); err != nil {
+		t.Fatalf("readNewLines() error = %v", err)
+	}
+
+	event := <-lines
+	if event.Path != logPath {
+		t.Fatalf("Path = %q, want %q", event.Path, logPath)
+	}
+	if string(event.Line) != "hello" {
+		t.Fatalf("Line = %q, want hello", event.Line)
+	}
+	if event.Offset != int64(len(line)) {
+		t.Fatalf("Offset = %d, want %d", event.Offset, len(line))
+	}
+	if event.Inode != state.inode {
+		t.Fatalf("Inode = %d, want %d", event.Inode, state.inode)
+	}
+}
+
+func TestScan_PrunesFileRemovedFromGlob(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "app.log")
+	if err := os.WriteFile(logPath, []byte("line\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	lines := make(chan LineEvent, 4)
+	w := newTestWatcher(t, lines, nil, config.WatchConfig{
+		Paths:    []string{dir},
+		Patterns: []string{"*.log"},
+		Poll:     "10ms",
+	})
+
+	if err := w.scan(); err != nil {
+		t.Fatalf("scan() error = %v", err)
+	}
+	if w.FileCount() != 1 {
+		t.Fatalf("FileCount() = %d, want 1", w.FileCount())
+	}
+	drainLineEvents(lines)
+
+	if err := os.Remove(logPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.scan(); err != nil {
+		t.Fatalf("scan() after remove error = %v", err)
+	}
+	if w.FileCount() != 0 {
+		t.Fatalf("FileCount() = %d, want 0 after file removed from glob", w.FileCount())
+	}
+}
+
+func TestTailFile_ResumesFromWatermark(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "app.log")
+	content := "line-one\nline-two\n"
+	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	inode, err := fileInode(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := state.NewStore(filepath.Join(dir, "watermarks.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Set(logPath, int64(len("line-one\n")), inode); err != nil {
+		t.Fatal(err)
+	}
+
+	lines := make(chan LineEvent, 2)
+	w := newTestWatcher(t, lines, store, config.WatchConfig{})
+	if err := w.tailFile(logPath); err != nil {
+		t.Fatalf("tailFile() error = %v", err)
+	}
+
+	events := drainLineEvents(lines)
+	if len(events) != 1 {
+		t.Fatalf("len(events) = %d, want 1", len(events))
+	}
+	if string(events[0].Line) != "line-two" {
+		t.Fatalf("Line = %q, want line-two", events[0].Line)
+	}
+}
+
+func TestTailFile_InodeChangeRestartsFromBeginning(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "app.log")
+	if err := os.WriteFile(logPath, []byte("before-rotate\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	lines := make(chan LineEvent, 4)
+	w := newTestWatcher(t, lines, nil, config.WatchConfig{
+		Paths:    []string{dir},
+		Patterns: []string{"*.log"},
+		Poll:     "10ms",
+	})
+
+	if err := w.scan(); err != nil {
+		t.Fatalf("scan() error = %v", err)
+	}
+	events := drainLineEvents(lines)
+	if len(events) != 1 || string(events[0].Line) != "before-rotate" {
+		t.Fatalf("first events = %#v, want before-rotate", events)
+	}
+
+	if err := os.Rename(logPath, logPath+".1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(logPath, []byte("after-rotate\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Allow filesystem metadata to settle before re-scanning.
+	time.Sleep(10 * time.Millisecond)
+	if err := w.scan(); err != nil {
+		t.Fatalf("scan() after rotate error = %v", err)
+	}
+
+	events = drainLineEvents(lines)
+	if len(events) != 1 {
+		t.Fatalf("len(events) after rotate = %d, want 1", len(events))
+	}
+	if string(events[0].Line) != "after-rotate" {
+		t.Fatalf("Line = %q, want after-rotate", events[0].Line)
+	}
+}
 
 func TestSendLineEventBlock(t *testing.T) {
 	t.Parallel()
