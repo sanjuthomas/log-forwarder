@@ -147,6 +147,12 @@ func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forw
 
 func (h *forwarderHarness) stop(t *testing.T) {
 	t.Helper()
+	h.cancelAndWait(t)
+	h.cleanup(t)
+}
+
+func (h *forwarderHarness) cancelAndWait(t *testing.T) {
+	t.Helper()
 	if h.cancel == nil {
 		return
 	}
@@ -158,11 +164,13 @@ func (h *forwarderHarness) stop(t *testing.T) {
 		select {
 		case <-h.errCh:
 		case <-deadline:
-			t.Log("timeout waiting for forwarder goroutines")
-			return
+			t.Fatal("timeout waiting for forwarder goroutines")
 		}
 	}
+}
 
+func (h *forwarderHarness) cleanup(t *testing.T) {
+	t.Helper()
 	if h.sink != nil {
 		_ = h.sink.Close()
 	}
