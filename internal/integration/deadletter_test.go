@@ -66,7 +66,7 @@ func TestE2E_DeadLetterOnPublishFailure(t *testing.T) {
 		t.Fatalf("dead letter jsonl file count = %d, want 1", n)
 	}
 
-	if offset := readWatermarkOffset(t, statePath, logFile); offset == 0 {
+	if offset := waitForWatermarkOffset(t, statePath, logFile); offset == 0 {
 		t.Fatal("expected watermark to advance after dead letter write")
 	}
 

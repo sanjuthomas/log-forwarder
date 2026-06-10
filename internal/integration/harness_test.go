@@ -539,6 +539,33 @@ func readWatermarkOffset(t *testing.T, statePath, logFile string) int64 {
 	return entry.Offset
 }
 
+// waitForWatermarkOffset polls until a watermark entry exists with offset > 0.
+// Dead-letter E2E tests must use this instead of readWatermarkOffset immediately
+// after the DLQ file appears: WriteBatch exposes the .jsonl before advanceWatermarks runs.
+func waitForWatermarkOffset(t *testing.T, statePath, logFile string) int64 {
+	t.Helper()
+
+	keys := []string{logFile}
+	if abs, err := filepath.Abs(logFile); err == nil {
+		keys = append(keys, abs)
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		store, err := state.NewStore(statePath)
+		if err == nil {
+			for _, key := range keys {
+				if entry, ok := store.Get(key); ok && entry.Offset > 0 {
+					return entry.Offset
+				}
+			}
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatalf("timeout waiting for watermark advance for %q", logFile)
+	return 0
+}
+
 func watermarkEntryExists(statePath, logFile string) (bool, error) {
 	store, err := state.NewStore(statePath)
 	if err != nil {
