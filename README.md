@@ -46,7 +46,7 @@ See [Installation and First Run](https://github.com/sanjuthomas/log-forwarder/wi
 | [`docs/integration-test-cases.txt`](docs/integration-test-cases.txt) | E2E test catalog |
 | [`docs/production-battle-test.txt`](docs/production-battle-test.txt) | Staging / battle-test checklist |
 | [`docs/docker.md`](docs/docker.md) | Container and sidecar notes |
-| [`wiki/`](wiki/) | Wiki source (sync with `./scripts/sync-wiki.sh`) |
+| [`wiki/`](wiki/) | Wiki source (auto-synced to GitHub Wiki on merge to `main`; run `./scripts/sync-wiki.sh` locally to preview) |
 | [`scripts/`](scripts/) | Docker and Kafka smoke tests |
 
 ## Docker
