@@ -935,6 +935,12 @@ Copy [`examples/custom/main.go`](examples/custom/main.go) as a starting point fo
 go test ./...
 ```
 
+Race detector (CI runs this on every PR to `main`):
+
+```bash
+go test -race ./...
+```
+
 Verbose output:
 
 ```bash

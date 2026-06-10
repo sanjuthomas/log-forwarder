@@ -25,6 +25,11 @@ jobs:
       - name: Run tests
         run: go test ./...
 
+      # Race detector on all packages (watcher, pipeline, integration, metrics, state).
+      # No exclusions: go test -race ./... passes locally on Go 1.22+.
+      - name: Run tests with race detector
+        run: go test -race ./...
+
       - name: Build log-forwarder
         run: go build -o bin/log-forwarder ./cmd/log-forwarder
 

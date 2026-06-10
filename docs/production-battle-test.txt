@@ -7,7 +7,7 @@ What you have today
 Layer                    Status
 -----                    ------
 Unit tests               Good coverage: config, parser, transform, sinks, pipeline retry, watermarks
-CI                       go test ./... + build on every PR
+CI                       go test ./... + go test -race ./... + build on every PR
 Observability            Prometheus metrics + /health (when metrics.enabled: true)
 Resiliency               Publish retry with configurable backoff; startup sink check
 State                    Watermarks + rotation via inode
