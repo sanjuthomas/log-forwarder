@@ -19,6 +19,22 @@ cat docker/output/records.jsonl
 
 Append a line to `docker/sample-data/app.log` and confirm a new JSONL record appears.
 
+## Filter smoke test (file sink)
+
+Automated file-sink round-trip with an ERROR-only filter:
+
+```bash
+./scripts/docker-smoke.sh
+```
+
+Stack (`docker-compose.smoke.yaml`):
+
+| Service | Role |
+|---------|------|
+| `log-forwarder` | Tails `filter-smoke.log` → `/output/records.jsonl` (ERROR only) |
+
+Config: `configs/example-docker-filter.yaml`. Asserts one published record and `log_forwarder_lines_filtered` on `/metrics`.
+
 ## Kafka smoke test
 
 Automated round-trip: forwarder publishes to Kafka; a console consumer verifies JSON records.
@@ -35,7 +51,7 @@ Stack (`docker-compose.kafka.yaml`):
 | `kafka-init` | Creates topic `logs` |
 | `log-forwarder` | Tails `docker/sample-data/kafka-smoke.log` → topic `logs` |
 
-Config: `configs/example-docker-kafka.yaml` (PLAINTEXT broker `kafka:9092`).
+Config: `configs/example-docker-kafka.yaml` (PLAINTEXT broker `kafka:9092`, ERROR-only filter).
 
 CI: **Kafka smoke** runs on every pull request to `main` and is required before merge.
 

@@ -59,6 +59,26 @@ E2E-9 TestE2E_MetricsHealthAndCounters
                                              /metrics exposes lines_read and
                                              lines_published after one line processed.
 
+E2E-10 TestE2E_FilterErrorsOnlyToFileSink
+                                             Tab-delimited INFO/WARN/ERROR lines;
+                                             ERROR-only filter publishes one record.
+
+E2E-11 TestE2E_FilterMatchAnyPassesWarnAndError
+                                             match: any filter passes WARN and ERROR,
+                                             drops INFO.
+
+E2E-12 TestE2E_FilterIncrementsMetricsCounter
+                                             Filtered lines increment
+                                             log_forwarder_lines_filtered on /metrics.
+
+E2E-13 TestE2E_FilterWatermarkAdvancesOnFilteredLines
+                                             INFO-only input with ERROR filter:
+                                             no sink records, watermark still advances.
+
+E2E-14 TestE2E_FilterOnMissingDropExcludesWrappedRecords
+                                             transform.on_error: wrap record without
+                                             level field is filtered out (on_missing drop).
+
 
 AUTOMATED — Configuration
 -------------------------
@@ -70,8 +90,14 @@ CFG-1 TestIntegration_ExampleConfigsValidate
                                              load and pass Validate() without error.
 
 KAFKA-1 scripts/kafka-smoke.sh (CI on every PR to main; also workflow_dispatch)
-                                             docker-compose.kafka.yaml round-trip: forwarder
-                                             publishes JSON to topic logs; consumer asserts content.
+                                             docker-compose.kafka.yaml round-trip with
+                                             ERROR-only filter: one record on topic logs,
+                                             WARN filtered, lines_filtered metric present.
+
+SMOKE-1 scripts/docker-smoke.sh
+                                             docker-compose.smoke.yaml file-sink stack with
+                                             ERROR-only filter: one JSONL record, filtered
+                                             metric present.
 
 
 MANUAL / STAGING ONLY — Not automated (and why)
@@ -122,9 +148,10 @@ TEST MATRIX (sink x parser)
 ---------------------------
 
                     line parser    multiline parser
-file sink           E2E-5,6        E2E-1,2,3,4
+file sink           E2E-5,6,10-14  E2E-1,2,3,4
 http-noauth sink    E2E-7          (same as E2E-1 pattern — add if needed)
-kafka sink          KAFKA-1, manual M-1 (TLS/SASL)   KAFKA-1 (PLAINTEXT)
+kafka sink          KAFKA-1, manual M-1 (TLS/SASL)   KAFKA-1 (PLAINTEXT + filter)
+docker file smoke   SMOKE-1        —
 
 
 COVERAGE GAPS (acceptable for v1)

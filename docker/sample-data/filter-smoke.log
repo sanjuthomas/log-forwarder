@@ -1,0 +1,3 @@
+2024-01-01T00:00:00Z	INFO	docker filter smoke info
+2024-01-01T00:00:01Z	ERROR	docker filter smoke error
+2024-01-01T00:00:02Z	WARN	docker filter smoke warn
