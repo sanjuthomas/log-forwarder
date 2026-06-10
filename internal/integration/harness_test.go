@@ -24,10 +24,12 @@ import (
 const springBootRegex = `^(?s)(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+(?P<level>\S+)\s+(?P<pid>\d+)\s+---\s+\[\s*(?P<thread>[^\]]+?)\s*\]\s+(?P<logger>\S+)\s+:\s+(?P<message>.*)$`
 
 type forwarderHarness struct {
-	cancel   context.CancelFunc
-	errCh    chan error
-	sink     sink.Sink
-	shutdown func(context.Context) error
+	cancel      context.CancelFunc
+	flushCancel context.CancelFunc
+	errCh       chan error
+	sink        sink.Sink
+	shutdown    func(context.Context) error
+	watermarks  *state.Store
 }
 
 type harnessOptions struct {
@@ -47,10 +49,16 @@ func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forw
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	watermarks, err := state.NewStore(cfg.StatePath())
+	flushInterval, flushEvery := cfg.Watch.State.PersistOptions()
+	watermarks, err := state.NewStore(cfg.StatePath(), state.Options{
+		FlushInterval: flushInterval,
+		FlushEvery:    flushEvery,
+	})
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
+	flushCtx, flushCancel := context.WithCancel(context.Background())
+	go watermarks.RunPeriodicFlush(flushCtx)
 
 	recordSink := opts.sink
 	if recordSink == nil {
@@ -126,10 +134,12 @@ func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forw
 	go func() { errCh <- pipe.Run(ctx, lines) }()
 
 	h := &forwarderHarness{
-		cancel:   cancel,
-		errCh:    errCh,
-		sink:     recordSink,
-		shutdown: shutdownMetrics,
+		cancel:      cancel,
+		flushCancel: flushCancel,
+		errCh:       errCh,
+		sink:        recordSink,
+		shutdown:    shutdownMetrics,
+		watermarks:  watermarks,
 	}
 	t.Cleanup(func() { h.stop(t) })
 	return h
@@ -161,6 +171,15 @@ func (h *forwarderHarness) stop(t *testing.T) {
 		_ = h.shutdown(shutdownCtx)
 		shutdownCancel()
 	}
+	if h.flushCancel != nil {
+		h.flushCancel()
+		h.flushCancel = nil
+	}
+	if h.watermarks != nil {
+		if err := h.watermarks.Flush(); err != nil {
+			t.Fatalf("watermarks.Flush() error = %v", err)
+		}
+	}
 }
 
 func springBootConfig(logDir, sinkPath, statePath string) *config.Config {
@@ -170,7 +189,7 @@ func springBootConfig(logDir, sinkPath, statePath string) *config.Config {
 			Sources: []config.WatchSource{
 				{Path: logDir, Patterns: []string{"*.log", "*.log.*"}},
 			},
-			State: config.StateConfig{Path: statePath},
+			State: config.StateConfig{Path: statePath, FlushInterval: "0"},
 		},
 		Sink: config.SinkConfig{
 			Type: "file",
@@ -214,7 +233,7 @@ func tabLineConfig(logDir, sinkPath, statePath, onError string, filter config.Fi
 			Sources: []config.WatchSource{
 				{Path: logDir, Patterns: []string{"*.log"}},
 			},
-			State: config.StateConfig{Path: statePath},
+			State: config.StateConfig{Path: statePath, FlushInterval: "0"},
 		},
 		Sink: config.SinkConfig{
 			Type: "file",
@@ -285,6 +304,32 @@ func countJSONLRecords(path string) (int, error) {
 		}
 	}
 	return count, scanner.Err()
+}
+
+func sinkMessages(records []map[string]any) []string {
+	messages := make([]string, 0, len(records))
+	for _, record := range records {
+		if msg, ok := record["message"].(string); ok {
+			messages = append(messages, msg)
+		}
+	}
+	return messages
+}
+
+func waitForSinkMessages(t *testing.T, path string, want ...string) {
+	t.Helper()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		records := readJSONLRecords(t, path)
+		if containsAll(sinkMessages(records), want...) {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+
+	records := readJSONLRecords(t, path)
+	t.Fatalf("timeout waiting for messages %v in %s, got %v", want, path, sinkMessages(records))
 }
 
 func waitForRecordCount(t *testing.T, path string, want int) {
