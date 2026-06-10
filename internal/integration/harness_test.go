@@ -98,6 +98,7 @@ func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forw
 
 	lines := make(chan watcher.LineEvent, cfg.Pipeline.BufferSize)
 	var w *watcher.Watcher
+	var pipe *pipeline.Pipeline
 
 	snapshot := metrics.Snapshot{
 		FilesWatched: func() int64 {
@@ -108,6 +109,12 @@ func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forw
 		},
 		BufferDepth:    func() int64 { return int64(len(lines)) },
 		BufferCapacity: int64(cfg.Pipeline.BufferSize),
+		PublishBufferActiveBytes: func() int64 {
+			if pipe == nil {
+				return 0
+			}
+			return pipe.PublishBufferActiveBytes()
+		},
 	}
 	readiness := buildHarnessReadiness(cfg, recordSink, snapshot)
 	collector, shutdownMetrics, err := metrics.New(cfg.Metrics, snapshot, readiness)
@@ -118,7 +125,7 @@ func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forw
 		t.Fatalf("collector.Start() error = %v", err)
 	}
 
-	pipe, err := pipeline.New(cfg, recordSink, logger, pipeline.Options{
+	pipe, err = pipeline.New(cfg, recordSink, logger, pipeline.Options{
 		Watermarks: watermarks,
 		Metrics:    collector,
 	})

@@ -51,9 +51,10 @@ type Collector struct {
 }
 
 type Snapshot struct {
-	FilesWatched     func() int64
-	BufferDepth      func() int64
-	BufferCapacity   int64
+	FilesWatched             func() int64
+	BufferDepth              func() int64
+	BufferCapacity           int64
+	PublishBufferActiveBytes func() int64
 }
 
 // New creates a metrics collector and HTTP server when metrics are enabled.
@@ -308,6 +309,20 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		metric.WithUnit("{event}"),
 		metric.WithInt64Callback(func(_ context.Context, observer metric.Int64Observer) error {
 			observer.Observe(snapshot.BufferCapacity)
+			return nil
+		}),
+	); err != nil {
+		return nil, err
+	}
+
+	if _, err := meter.Int64ObservableGauge(
+		"log_forwarder.publish.buffer.active_bytes",
+		metric.WithDescription("Serialized JSON bytes currently buffered before publish."),
+		metric.WithUnit("By"),
+		metric.WithInt64Callback(func(_ context.Context, observer metric.Int64Observer) error {
+			if snapshot.PublishBufferActiveBytes != nil {
+				observer.Observe(snapshot.PublishBufferActiveBytes())
+			}
 			return nil
 		}),
 	); err != nil {

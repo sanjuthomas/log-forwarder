@@ -31,7 +31,8 @@ type Pipeline struct {
 	metrics      *metrics.Collector
 	logger       *slog.Logger
 	batchEnabled bool
-	publishBuf   *publishBuffer
+	flusher      *publishFlusher
+	runCtx       context.Context
 }
 
 type Options struct {
@@ -62,12 +63,8 @@ func New(cfg *config.Config, s sink.Sink, logger *slog.Logger, opts Options) (*P
 	}
 
 	batchEnabled := cfg.Pipeline.PublishBatch.Enabled()
-	var publishBuf *publishBuffer
-	if batchEnabled {
-		publishBuf = newPublishBuffer()
-	}
 
-	return &Pipeline{
+	pipe := &Pipeline{
 		cfg:          cfg,
 		parser:       p,
 		transformer:  t,
@@ -79,11 +76,24 @@ func New(cfg *config.Config, s sink.Sink, logger *slog.Logger, opts Options) (*P
 		metrics:      opts.Metrics,
 		logger:       logger,
 		batchEnabled: batchEnabled,
-		publishBuf:   publishBuf,
-	}, nil
+	}
+	if batchEnabled {
+		pipe.flusher = newPublishFlusher(pipe)
+	}
+	return pipe, nil
+}
+
+func (p *Pipeline) PublishBufferActiveBytes() int64 {
+	if p.flusher == nil {
+		return 0
+	}
+	return p.flusher.activeBytes()
 }
 
 func (p *Pipeline) Run(ctx context.Context, lines <-chan watcher.LineEvent) error {
+	p.runCtx = ctx
+	defer func() { p.runCtx = nil }()
+
 	var flushTick <-chan time.Time
 	if p.batchEnabled {
 		if interval := p.cfg.Pipeline.PublishBatch.FlushIntervalDuration(); interval > 0 {
@@ -122,8 +132,8 @@ func (p *Pipeline) shutdown(ctx context.Context) error {
 	if err := p.flushParser(ctx); err != nil {
 		return err
 	}
-	if p.batchEnabled {
-		return p.flushPublishBuffer(ctx, "shutdown")
+	if p.flusher != nil {
+		return p.flusher.shutdown(ctx)
 	}
 	return nil
 }
