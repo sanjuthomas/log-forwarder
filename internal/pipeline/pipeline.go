@@ -20,16 +20,18 @@ import (
 
 // Pipeline processes log lines through transform, enrich, and publish stages.
 type Pipeline struct {
-	cfg         *config.Config
-	parser      parser.Parser
-	transformer transform.Transformer
-	normalizer  *timestamp.Normalizer
-	filter      filter.Predicate
-	enrichers   []enrich.Enricher
-	sink        sink.Sink
-	watermarks  *state.Store
-	metrics     *metrics.Collector
-	logger      *slog.Logger
+	cfg          *config.Config
+	parser       parser.Parser
+	transformer  transform.Transformer
+	normalizer   *timestamp.Normalizer
+	filter       filter.Predicate
+	enrichers    []enrich.Enricher
+	sink         sink.Sink
+	watermarks   *state.Store
+	metrics      *metrics.Collector
+	logger       *slog.Logger
+	batchEnabled bool
+	publishBuf   *publishBuffer
 }
 
 type Options struct {
@@ -58,28 +60,50 @@ func New(cfg *config.Config, s sink.Sink, logger *slog.Logger, opts Options) (*P
 	if err != nil {
 		return nil, err
 	}
+
+	batchEnabled := cfg.Pipeline.PublishBatch.Enabled()
+	var publishBuf *publishBuffer
+	if batchEnabled {
+		publishBuf = newPublishBuffer()
+	}
+
 	return &Pipeline{
-		cfg:         cfg,
-		parser:      p,
-		transformer: t,
-		normalizer:  normalizer,
-		filter:      f,
-		enrichers:   chain,
-		sink:        s,
-		watermarks:  opts.Watermarks,
-		metrics:     opts.Metrics,
-		logger:      logger,
+		cfg:          cfg,
+		parser:       p,
+		transformer:  t,
+		normalizer:   normalizer,
+		filter:       f,
+		enrichers:    chain,
+		sink:         s,
+		watermarks:   opts.Watermarks,
+		metrics:      opts.Metrics,
+		logger:       logger,
+		batchEnabled: batchEnabled,
+		publishBuf:   publishBuf,
 	}, nil
 }
 
 func (p *Pipeline) Run(ctx context.Context, lines <-chan watcher.LineEvent) error {
+	var flushTick <-chan time.Time
+	if p.batchEnabled {
+		if interval := p.cfg.Pipeline.PublishBatch.FlushIntervalDuration(); interval > 0 {
+			ticker := time.NewTicker(interval)
+			defer ticker.Stop()
+			flushTick = ticker.C
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
-			return p.flush(ctx)
+			return p.shutdown(ctx)
+		case <-flushTick:
+			if err := p.flushPublishBuffer(ctx, "timer"); err != nil {
+				return err
+			}
 		case event, ok := <-lines:
 			if !ok {
-				return p.flush(ctx)
+				return p.shutdown(ctx)
 			}
 			records, err := p.parser.Feed(event)
 			if err != nil {
@@ -94,7 +118,17 @@ func (p *Pipeline) Run(ctx context.Context, lines <-chan watcher.LineEvent) erro
 	}
 }
 
-func (p *Pipeline) flush(ctx context.Context) error {
+func (p *Pipeline) shutdown(ctx context.Context) error {
+	if err := p.flushParser(ctx); err != nil {
+		return err
+	}
+	if p.batchEnabled {
+		return p.flushPublishBuffer(ctx, "shutdown")
+	}
+	return nil
+}
+
+func (p *Pipeline) flushParser(ctx context.Context) error {
 	records, err := p.parser.Flush()
 	if err != nil {
 		return err
@@ -162,10 +196,15 @@ func (p *Pipeline) process(ctx context.Context, event parser.Event) error {
 				)
 			}
 
-			if err := p.publishWithRetry(ctx, payload); err != nil {
+			if err := p.enqueuePublish(ctx, pendingPublish{
+				payload: payload,
+				path:    event.Path,
+				offset:  event.Offset,
+				inode:   event.Inode,
+			}); err != nil {
 				return err
 			}
-			p.metrics.RecordLinePublished(ctx)
+			return nil
 		}
 	}
 
@@ -175,59 +214,4 @@ func (p *Pipeline) process(ctx context.Context, event parser.Event) error {
 		}
 	}
 	return nil
-}
-
-func (p *Pipeline) publishWithRetry(ctx context.Context, payload []byte) error {
-	retry := p.cfg.Pipeline.PublishRetry
-	backoff := retry.InitialBackoffDuration()
-	maxBackoff := retry.MaxBackoffDuration()
-	maxAttempts := retry.MaxAttempts
-	publishTimeout := p.cfg.Pipeline.PublishTimeoutDuration()
-
-	attempt := 0
-	for {
-		attempt++
-
-		publishCtx := ctx
-		var cancel context.CancelFunc
-		if publishTimeout > 0 {
-			publishCtx, cancel = context.WithTimeout(ctx, publishTimeout)
-		}
-
-		start := time.Now()
-		err := p.sink.Publish(publishCtx, payload)
-		if cancel != nil {
-			cancel()
-		}
-		p.metrics.RecordPublishDuration(ctx, time.Since(start))
-		if err == nil {
-			return nil
-		}
-
-		p.metrics.RecordPublishFailure(ctx)
-
-		if maxAttempts > 0 && attempt >= maxAttempts {
-			return fmt.Errorf("publish failed after %d attempts: %w", attempt, err)
-		}
-
-		p.logger.Warn("publish failed, retrying",
-			"error", err,
-			"attempt", attempt,
-			"retry_in", backoff,
-		)
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(backoff):
-			p.metrics.RecordPublishRetry(ctx)
-		}
-
-		if backoff < maxBackoff {
-			backoff *= 2
-			if backoff > maxBackoff {
-				backoff = maxBackoff
-			}
-		}
-	}
 }

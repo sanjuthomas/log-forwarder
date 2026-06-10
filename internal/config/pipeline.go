@@ -12,16 +12,56 @@ type PublishRetryConfig struct {
 }
 
 const (
-	DefaultMaxPublishBytes = 1048576 // 1 MiB, aligned with Kafka message.max.bytes default
-	DefaultTruncateField   = "message"
-	DefaultTruncateSuffix  = "… [truncated]"
+	DefaultMaxPublishBytes           = 1048576 // 1 MiB, aligned with Kafka message.max.bytes default
+	DefaultTruncateField             = "message"
+	DefaultTruncateSuffix            = "… [truncated]"
+	DefaultPublishBatchMaxBytes      = 1048576
+	DefaultPublishBatchFlushInterval = 100 * time.Millisecond
 )
+
+type PublishBatchConfig struct {
+	MaxBytes      int    `yaml:"max_bytes"`
+	FlushInterval string `yaml:"flush_interval"`
+}
+
+func (c PublishBatchConfig) Enabled() bool {
+	return c.MaxBytes > 0 || (c.FlushInterval != "0" && c.FlushIntervalDuration() > 0)
+}
+
+func (c PublishBatchConfig) SizeTriggerEnabled() bool {
+	return c.Enabled() && c.MaxBytes > 0
+}
+
+func (c PublishBatchConfig) MaxBytesLimit() int {
+	if !c.SizeTriggerEnabled() {
+		return 0
+	}
+	return c.MaxBytes
+}
+
+func (c PublishBatchConfig) FlushIntervalDuration() time.Duration {
+	if c.FlushInterval == "0" {
+		return 0
+	}
+	if c.FlushInterval == "" {
+		if c.MaxBytes > 0 {
+			return DefaultPublishBatchFlushInterval
+		}
+		return 0
+	}
+	d, err := time.ParseDuration(c.FlushInterval)
+	if err != nil {
+		return 0
+	}
+	return d
+}
 
 type PipelineConfig struct {
 	BufferSize       int                `yaml:"buffer_size"`
 	OnFull           string             `yaml:"on_full"`
 	PublishTimeout   string             `yaml:"publish_timeout"`
 	PublishRetry     PublishRetryConfig `yaml:"publish_retry"`
+	PublishBatch     PublishBatchConfig `yaml:"publish_batch"`
 	MaxPublishBytes  int                `yaml:"max_publish_bytes"`
 	TruncateField    string             `yaml:"truncate_field"`
 	TruncateSuffix   string             `yaml:"truncate_suffix"`
@@ -113,6 +153,15 @@ func (c *Config) validatePipeline() error {
 
 	if c.Pipeline.MaxPublishBytes < 0 {
 		return fmt.Errorf("pipeline.max_publish_bytes must be >= 0")
+	}
+
+	if c.Pipeline.PublishBatch.MaxBytes < 0 {
+		return fmt.Errorf("pipeline.publish_batch.max_bytes must be >= 0")
+	}
+	if c.Pipeline.PublishBatch.FlushInterval != "" && c.Pipeline.PublishBatch.FlushInterval != "0" {
+		if _, err := time.ParseDuration(c.Pipeline.PublishBatch.FlushInterval); err != nil {
+			return fmt.Errorf("pipeline.publish_batch.flush_interval: %w", err)
+		}
 	}
 
 	return nil

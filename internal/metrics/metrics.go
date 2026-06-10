@@ -15,6 +15,7 @@ import (
 	hostinstrumentation "go.opentelemetry.io/contrib/instrumentation/host"
 	runtimeinstrumentation "go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -38,6 +39,9 @@ type Collector struct {
 	publishFailures      metric.Int64Counter
 	publishRetries       metric.Int64Counter
 	publishTruncations   metric.Int64Counter
+	publishBatchFlushes  metric.Int64Counter
+	publishBatchSize     metric.Int64Histogram
+	publishBatchBytes    metric.Int64Histogram
 	publishDuration      metric.Float64Histogram
 
 	provider *sdkmetric.MeterProvider
@@ -234,6 +238,33 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		return nil, err
 	}
 
+	publishBatchFlushes, err := meter.Int64Counter(
+		"log_forwarder.publish.batch.flushes",
+		metric.WithDescription("Total number of publish batch flushes."),
+		metric.WithUnit("{flush}"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	publishBatchSize, err := meter.Int64Histogram(
+		"log_forwarder.publish.batch.size",
+		metric.WithDescription("Number of records per publish batch flush."),
+		metric.WithUnit("{record}"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	publishBatchBytes, err := meter.Int64Histogram(
+		"log_forwarder.publish.batch.bytes",
+		metric.WithDescription("Serialized JSON bytes per publish batch flush."),
+		metric.WithUnit("By"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	publishDuration, err := meter.Float64Histogram(
 		"log_forwarder.publish.duration",
 		metric.WithDescription("Sink publish latency."),
@@ -293,8 +324,11 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		timestampParseFailed: timestampParseFailed,
 		publishFailures:      publishFailures,
 		publishRetries:       publishRetries,
-		publishTruncations:   publishTruncations,
-		publishDuration:      publishDuration,
+		publishTruncations:  publishTruncations,
+		publishBatchFlushes: publishBatchFlushes,
+		publishBatchSize:    publishBatchSize,
+		publishBatchBytes:   publishBatchBytes,
+		publishDuration:     publishDuration,
 	}, nil
 }
 
@@ -405,6 +439,21 @@ func (c *Collector) RecordPublishTruncation(ctx context.Context) {
 		return
 	}
 	c.publishTruncations.Add(ctx, 1)
+}
+
+func (c *Collector) RecordPublishBatchFlush(ctx context.Context, reason string, count int, bytes int) {
+	if c == nil {
+		return
+	}
+	if c.publishBatchFlushes != nil {
+		c.publishBatchFlushes.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", reason)))
+	}
+	if c.publishBatchSize != nil {
+		c.publishBatchSize.Record(ctx, int64(count))
+	}
+	if c.publishBatchBytes != nil {
+		c.publishBatchBytes.Record(ctx, int64(bytes))
+	}
 }
 
 func (c *Collector) RecordPublishDuration(ctx context.Context, duration time.Duration) {

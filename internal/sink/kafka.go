@@ -68,7 +68,18 @@ func (k *kafkaSink) Check(ctx context.Context) error {
 }
 
 func (k *kafkaSink) Publish(ctx context.Context, payload []byte) error {
-	if err := k.writer.WriteMessages(ctx, kafka.Message{Value: payload}); err != nil {
+	return k.PublishBatch(ctx, [][]byte{payload})
+}
+
+func (k *kafkaSink) PublishBatch(ctx context.Context, payloads [][]byte) error {
+	if len(payloads) == 0 {
+		return nil
+	}
+	messages := make([]kafka.Message, len(payloads))
+	for i, payload := range payloads {
+		messages[i] = kafka.Message{Value: payload}
+	}
+	if err := k.writer.WriteMessages(ctx, messages...); err != nil {
 		return fmt.Errorf("kafka publish: %w", err)
 	}
 	return nil
