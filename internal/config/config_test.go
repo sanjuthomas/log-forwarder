@@ -192,6 +192,9 @@ func TestValidateDeadLetterPathWritable(t *testing.T) {
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}
+	if err := cfg.ValidateDeadLetterAtStartup(); err != nil {
+		t.Fatalf("ValidateDeadLetterAtStartup() error = %v", err)
+	}
 }
 
 func TestValidatePublishBatchRejectsInvalidOnFlushFailure(t *testing.T) {

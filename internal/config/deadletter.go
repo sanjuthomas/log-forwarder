@@ -26,6 +26,24 @@ func validateDeadLetterPath(c *Config, path string) error {
 		}
 	}
 
+	return nil
+}
+
+// ValidateDeadLetterAtStartup checks that dead_letter.path exists and is writable.
+// Call at process startup (not from Validate) so container-only paths like /dlq
+// can pass static config validation in tests and CI.
+func (c *Config) ValidateDeadLetterAtStartup() error {
+	if c.Pipeline.PublishBatch.OnFlushFailureOrDefault() != OnFlushFailureDeadLetter {
+		return nil
+	}
+	path := c.Pipeline.PublishBatch.DeadLetter.Path
+	if path == "" {
+		return fmt.Errorf("pipeline.publish_batch.dead_letter.path is required when on_flush_failure is dead_letter")
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("pipeline.publish_batch.dead_letter.path: %w", err)
+	}
 	if err := deadletter.ValidateWritable(absPath); err != nil {
 		return fmt.Errorf("pipeline.publish_batch.dead_letter.path: %w", err)
 	}

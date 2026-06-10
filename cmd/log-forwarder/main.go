@@ -67,6 +67,11 @@ func main() {
 	}
 	logger.Info("sink connectivity verified", "type", cfg.Sink.Type)
 
+	if err := cfg.ValidateDeadLetterAtStartup(); err != nil {
+		logger.Error("dead letter path unavailable at startup; refusing to start forwarder", "error", err)
+		os.Exit(1)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 

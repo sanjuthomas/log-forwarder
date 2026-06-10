@@ -77,6 +77,10 @@ func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forw
 		checkCancel()
 	}
 
+	if err := cfg.ValidateDeadLetterAtStartup(); err != nil {
+		t.Fatalf("ValidateDeadLetterAtStartup() error = %v", err)
+	}
+
 	if opts.metricsEnabled {
 		cfg.Metrics.Enabled = true
 		cfg.Metrics.Host = "127.0.0.1"
