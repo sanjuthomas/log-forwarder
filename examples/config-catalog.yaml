@@ -11,6 +11,9 @@
 #
 # Narrative configuration guide:
 #   https://github.com/sanjuthomas/log-forwarder/wiki/Configuration-Reference
+#
+# Config combination test plan (coverage gaps, GitHub issues #55–#65):
+#   docs/config-test-plan.txt
 
 version: 2
 

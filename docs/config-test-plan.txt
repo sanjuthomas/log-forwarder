@@ -1,0 +1,213 @@
+Log Forwarder — Config Combination Test Plan
+=============================================
+
+Companion to:
+  - examples/config-catalog.yaml   (which example demonstrates which feature)
+  - wiki/Config-Catalog            (what each config key means)
+  - docs/integration-test-cases.txt (automated test catalog)
+
+Status key:
+  DONE     — implemented and listed in integration-test-cases.txt
+  PARTIAL  — unit or validate-only; runtime gap remains
+  PLANNED  — tracked GitHub issue; not implemented
+  MANUAL   — staging / smoke only
+  N/A      — unsupported or out of scope
+
+Last updated: 2026-06-10
+
+
+1. Coverage model
+-----------------
+
+Three layers matter for config confidence:
+
+  L1  config.Load + Validate()     CFG-1 (all example YAMLs)
+  L2  package unit tests           internal/config, pipeline, watcher, sink, …
+  L3  integration E2E + smoke      internal/integration, scripts/*-smoke.sh
+
+Gap: L1 does not prove runtime behavior. Most L3 tests use harness-built config
+(regex tab lines, file sink), not the checked-in example files.
+
+
+2. Config area matrix
+---------------------
+
+Area                          L1   L2   L3/E2E   Smoke   Status
+----                          --   --   ------   -----   ------
+watch.poll                    -    -    PARTIAL  -       PLANNED (implicit in all E2E)
+watch.paths + patterns          -    DONE PARTIAL  -       PLANNED CFG-2
+watch.sources (multi)           -    DONE -        -       PLANNED E2E-22
+watch.state.path              DONE DONE DONE      -       DONE
+watch.state.flush_interval    -    DONE DONE      -       DONE (E2E-20, E2E-21)
+watch.state.flush_every       -    DONE -        -       PLANNED E2E-23
+
+parser.line                   -    -    DONE      -       DONE
+parser.multiline              -    DONE DONE      -       DONE (E2E-1,2,4)
+
+transform.delimiter           DONE DONE PARTIAL   DONE    PLANNED E2E-24
+transform.regex               DONE DONE DONE      -       DONE
+transform.tab                 -    DONE -        -       PLANNED (covered by E2E-24)
+transform.on_error skip       -    -    DONE      -       DONE (E2E-5)
+transform.on_error wrap       -    -    DONE      -       DONE (E2E-6)
+
+timestamp block               DONE DONE DONE      -       DONE
+filter field in/any           DONE DONE DONE      DONE    DONE (E2E-10–14)
+filter neq/not_in/compound    DONE DONE -         -       PLANNED E2E-25
+filter.on_missing pass        DONE DONE -         -       PLANNED E2E-26
+
+enrichers.static + host       DONE DONE PARTIAL   -       PARTIAL
+
+sink.file                     DONE -    DONE      DONE    DONE
+sink.http-noauth              DONE DONE DONE      -       DONE (E2E-7)
+sink.kafka                    DONE DONE PARTIAL   DONE    PARTIAL (KAFKA-1 smoke; mock unit)
+sink.kafka TLS/SASL modes     DONE DONE -         MANUAL  MANUAL (M-1)
+sink.kafka GSSAPI             DONE DONE -         -       N/A (not implemented)
+
+pipeline.buffer_size          DONE DONE PARTIAL   -       PLANNED E2E-27
+pipeline.on_full block        DONE DONE PARTIAL   -       PLANNED E2E-27
+pipeline.on_full drop         -    DONE PARTIAL   -       PLANNED E2E-28
+pipeline.publish_timeout      DONE DONE -         -       PLANNED E2E-29
+pipeline.publish_retry        DONE DONE DONE      -       DONE (E2E-8)
+pipeline.publish_batch        DONE DONE DONE      -       DONE (E2E-17–19, PB-*)
+pipeline.hibernate            DONE DONE DONE      -       DONE (E2E-18)
+pipeline.hibernate.wake       DONE DONE -         -       PLANNED E2E-30
+pipeline.dead_letter          DONE DONE DONE      DONE    DONE (E2E-19, KAFKA-2)
+pipeline.max_publish_bytes    DONE DONE DONE      -       DONE
+
+logging.file                  DONE DONE -         -       PLANNED CFG-3
+logging.status_interval       DONE -    -         -       PLANNED CFG-3
+
+metrics.enabled               DONE DONE PARTIAL   -       PARTIAL (E2E-9 presence)
+metrics.readiness             DONE DONE PARTIAL   PARTIAL PLANNED E2E-31
+
+copytruncate rotation         -    -    -         -       N/A (unsupported)
+custom registered types       DONE DONE -         -       N/A (v2)
+
+
+3. Planned tests (by priority)
+------------------------------
+
+P0 — Documented behavior, high operator risk
+------------------------------------------
+
+ID      Proposed test name                              Config keys exercised
+--      ------------------                              ---------------------
+E2E-28  TestE2E_OnFullDropIncrementsMetricAndSkipsWatermark
+                                            pipeline.on_full: drop, pipeline.buffer_size,
+                                            watch offset vs watermark on restart
+
+E2E-27  TestE2E_OnFullBlockBackpressureAndReadiness
+                                            pipeline.on_full: block, pipeline.buffer_size,
+                                            log_forwarder_pipeline_buffer_depth,
+                                            metrics.readiness.buffer_threshold
+
+E2E-30  TestE2E_HibernateWakeRecoversWithoutRestart
+                                            publish_batch.hibernate.wake_enabled,
+                                            publish_batch.hibernate.wake_interval,
+                                            /ready sink_hibernating → READY
+
+E2E-23  TestE2E_WatermarkFlushEveryPersistsOnCount
+                                            watch.state.flush_every,
+                                            watch.state.flush_interval
+
+
+P1 — Close example-config vs runtime gap
+----------------------------------------
+
+ID      Proposed test name                              Config keys exercised
+--      ------------------                              ---------------------
+CFG-2   TestIntegration_ExampleConfigsRunEndToEnd
+                                            Table-driven: load each configs/*.yaml and
+                                            examples/kafka/plaintext.yaml; rewrite paths
+                                            to temp dirs; append one line; assert publish
+
+E2E-24  TestE2E_DelimiterTransformFileAndHTTP
+                                            transform.type: delimiter, columns,
+                                            sink file + http-noauth
+
+E2E-31  TestE2E_ReadinessReasonsOnLiveForwarder
+                                            metrics.readiness sink_unreachable,
+                                            pipeline_buffer_high, no_files_watched
+
+E2E-29  TestE2E_PublishTimeoutFailsSlowPublish
+                                            pipeline.publish_timeout
+
+
+P2 — Combination expansion
+--------------------------
+
+ID      Proposed test name                              Config keys exercised
+--      ------------------                              ---------------------
+E2E-22  TestE2E_MultipleWatchSourcesSingleProcess
+                                            watch.sources (2+ paths), one watermark file
+
+E2E-25  TestE2E_FilterCompoundAndNotIn
+                                            filter.compound, filter op not_in/neq
+
+E2E-26  TestE2E_FilterOnMissingPassPublishesWrapped
+                                            filter.on_missing: pass, transform.on_error: wrap
+
+E2E-32  TestE2E_SpringBootMultilineKafkaSink
+                                            parser multiline, regex, timestamp, sink kafka
+                                            (in-process httptest or testcontainers)
+
+E2E-33  TestE2E_SpringBootMultilineHTTPSink
+                                            same as E2E-32 with http-noauth
+
+CFG-3   TestIntegration_LoggingFileAndStatusInterval
+                                            logging.file, logging.status_interval
+
+
+P3 — Infrastructure / manual (keep as staging)
+----------------------------------------------
+
+  KAFKA-3  Per examples/kafka/*.yaml TLS/SASL round-trip (testcontainers)
+  M-*      Existing manual staging items in integration-test-cases.txt
+
+
+4. GitHub issue mapping
+-----------------------
+
+  Issue   Title                                              Tests
+  -----   -----                                              -----
+  #55     E2E on_full drop watermark and buffer_dropped      E2E-28
+  #56     E2E on_full block backpressure and readiness       E2E-27
+  #57     E2E hibernate wake recovers without restart        E2E-30
+  #58     E2E watermark flush_every persist                  E2E-23
+  #59     Table-driven E2E for example YAML configs        CFG-2
+  #60     E2E delimiter transform file and HTTP              E2E-24
+  #61     E2E readiness reasons on live forwarder            E2E-31
+  #62     E2E publish_timeout slow publish                   E2E-29
+  #63     E2E multiple watch sources                         E2E-22
+  #64     E2E filter compound neq not_in                      E2E-25
+  #65     E2E Spring Boot multiline kafka and HTTP sinks     E2E-32, E2E-33
+
+https://github.com/sanjuthomas/log-forwarder/issues/55 through #65
+
+
+5. Suggested implementation order
+-------------------------------
+
+  1. CFG-2 scaffold (unlocks confidence in all 21 example configs at runtime)
+  2. E2E-28, E2E-27 (on_full — highest operational risk)
+  3. E2E-30 (hibernate wake — code exists, only E2E missing)
+  4. E2E-31 (readiness — docker smoke configs already set readiness)
+  5. E2E-24, E2E-29 (transform/sink variants)
+  6. Remaining P2 items
+
+
+6. Example config → planned test coverage
+-----------------------------------------
+
+After CFG-2 + P0/P1, each example config should have at least one runtime test:
+
+  configs/example.yaml                          CFG-2, E2E-29
+  configs/example-regex.yaml                    CFG-2
+  configs/example-file.yaml                     CFG-2, E2E-24
+  configs/example-http-noauth.yaml              CFG-2, E2E-24
+  configs/example-filter.yaml                   CFG-2, E2E-25
+  configs/example-spring-boot-kafka.yaml        CFG-2, E2E-32
+  configs/example-spring-boot-file.yaml         CFG-2 (already similar to E2E-1)
+  configs/example-spring-boot-http-noauth.yaml  CFG-2, E2E-33
+  configs/example-docker-*.yaml                 CFG-2, smoke scripts (existing)
+  examples/kafka/*.yaml                         CFG-2 validate; KAFKA-3 for TLS/SASL
