@@ -27,36 +27,14 @@ func (p *Pipeline) enqueuePublish(ctx context.Context, item pendingPublish) erro
 	if !p.batchEnabled {
 		return p.publishAndAdvance(ctx, []pendingPublish{item})
 	}
-
-	maxBytes := p.cfg.Pipeline.PublishBatch.MaxBytesLimit()
-
-	if maxBytes > 0 && len(item.payload) > maxBytes {
-		items := p.publishBuf.drain()
-		p.publishBuf.append(item)
-		batch := p.publishBuf.drain()
-
-		if len(items) > 0 {
-			if err := p.flushItems(ctx, items, "size"); err != nil {
-				return err
-			}
-		}
-		return p.flushItems(ctx, batch, "size")
-	}
-
-	if maxBytes > 0 && p.publishBuf.bytes > 0 && p.publishBuf.bytes+len(item.payload) > maxBytes {
-		items := p.publishBuf.drain()
-		if err := p.flushItems(ctx, items, "size"); err != nil {
-			return err
-		}
-	}
-
-	p.publishBuf.append(item)
-	return nil
+	return p.flusher.enqueue(ctx, item)
 }
 
 func (p *Pipeline) flushPublishBuffer(ctx context.Context, reason string) error {
-	items := p.publishBuf.drain()
-	return p.flushItems(ctx, items, reason)
+	if p.flusher == nil {
+		return nil
+	}
+	return p.flusher.triggerFlush(ctx, reason)
 }
 
 func (p *Pipeline) flushItems(ctx context.Context, items []pendingPublish, reason string) error {

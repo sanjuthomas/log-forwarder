@@ -73,6 +73,7 @@ func main() {
 	lines := make(chan watcher.LineEvent, cfg.Pipeline.BufferSize)
 
 	var forwarderWatcher *watcher.Watcher
+	var forwarderPipe *pipeline.Pipeline
 	snapshot := metrics.Snapshot{
 		FilesWatched: func() int64 {
 			if forwarderWatcher == nil {
@@ -84,6 +85,12 @@ func main() {
 			return int64(len(lines))
 		},
 		BufferCapacity: int64(cfg.Pipeline.BufferSize),
+		PublishBufferActiveBytes: func() int64 {
+			if forwarderPipe == nil {
+				return 0
+			}
+			return forwarderPipe.PublishBufferActiveBytes()
+		},
 	}
 	readiness := buildReadiness(cfg, recordSink, snapshot)
 	collector, shutdownMetrics, err := metrics.New(cfg.Metrics, snapshot, readiness)
@@ -103,7 +110,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	pipe, err := pipeline.New(cfg, recordSink, logger, pipeline.Options{
+	forwarderPipe, err = pipeline.New(cfg, recordSink, logger, pipeline.Options{
 		Watermarks: watermarks,
 		Metrics:    collector,
 	})
@@ -111,6 +118,7 @@ func main() {
 		logger.Error("create pipeline", "error", err)
 		os.Exit(1)
 	}
+	pipe := forwarderPipe
 
 	forwarderWatcher = watcher.New(cfg, lines, watermarks, collector, logger)
 

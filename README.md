@@ -538,7 +538,7 @@ enrichers:
 
 When a publish fails, the pipeline retries with exponential backoff (doubling delay up to `max_backoff`). Watermarks are not advanced until a batch flush succeeds.
 
-Publish batches are flushed on size threshold, timer, or shutdown. Kafka and file sinks implement `PublishBatch`; other sinks fall back to sequential `Publish` calls per record in the batch.
+Publish batches are flushed on size threshold, timer, or shutdown. While a batch is flushing asynchronously, the pipeline continues appending to a second active buffer; if that buffer fills before the in-flight flush completes, ingest blocks until the sink commit finishes (backpressure). Kafka and file sinks implement `PublishBatch`; other sinks fall back to sequential `Publish` calls per record in the batch.
 
 Oversized records set `publish_truncated: true` and field metadata such as `message_truncated` and `message_original_bytes`. If the record is still too large after truncating the message field, the pipeline tries `_raw` (wrap records) and then the largest string field. UTF-8-safe truncation avoids splitting multibyte characters.
 
@@ -1205,6 +1205,7 @@ Other useful log lines:
 | `log_forwarder_publish_batch_flushes` | Publish buffer flushes (`reason`: `size`, `timer`, `shutdown`) |
 | `log_forwarder_publish_batch_size` | Records per publish batch flush (histogram) |
 | `log_forwarder_publish_batch_bytes` | Serialized JSON bytes per publish batch flush (histogram) |
+| `log_forwarder_publish_buffer_active_bytes` | Serialized JSON bytes waiting in the publish buffer |
 | `log_forwarder_publish_retries` | Retries after a publish failure |
 | `log_forwarder_publish_duration` | Sink publish latency (histogram, seconds) |
 | `log_forwarder_files_watched` | Files currently being tailed |
