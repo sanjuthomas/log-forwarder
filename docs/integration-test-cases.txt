@@ -3,7 +3,7 @@ Log Forwarder — Integration Test Cases
 
 This document lists integration test scenarios for log-forwarder. Cases marked
 AUTOMATED are implemented under internal/integration/ and run in CI via
-go test ./...
+go test ./... and go test -race ./...
 
 Run integration tests:
 
