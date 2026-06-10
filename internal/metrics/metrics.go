@@ -31,6 +31,7 @@ type Collector struct {
 	linesRead            metric.Int64Counter
 	linesPublished       metric.Int64Counter
 	linesSkipped         metric.Int64Counter
+	linesFiltered        metric.Int64Counter
 	bufferDropped        metric.Int64Counter
 	transformErrors      metric.Int64Counter
 	publishFailures      metric.Int64Counter
@@ -168,6 +169,15 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		return nil, err
 	}
 
+	linesFiltered, err := meter.Int64Counter(
+		"log_forwarder.lines.filtered",
+		metric.WithDescription("Total number of log lines dropped by configured filters."),
+		metric.WithUnit("{line}"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	bufferDropped, err := meter.Int64Counter(
 		"log_forwarder.pipeline.buffer.dropped",
 		metric.WithDescription("Total number of line events dropped because the pipeline buffer was full."),
@@ -257,6 +267,7 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		linesRead:            linesRead,
 		linesPublished:       linesPublished,
 		linesSkipped:         linesSkipped,
+		linesFiltered:        linesFiltered,
 		bufferDropped:        bufferDropped,
 		transformErrors:      transformErrors,
 		publishFailures:      publishFailures,
@@ -323,6 +334,13 @@ func (c *Collector) RecordLineSkipped(ctx context.Context) {
 		return
 	}
 	c.linesSkipped.Add(ctx, 1)
+}
+
+func (c *Collector) RecordLineFiltered(ctx context.Context) {
+	if c == nil || c.linesFiltered == nil {
+		return
+	}
+	c.linesFiltered.Add(ctx, 1)
 }
 
 func (c *Collector) RecordLineBufferDropped(ctx context.Context) {

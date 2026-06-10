@@ -1,6 +1,6 @@
 # log-forwarder
 
-A lightweight Go service that tails log files, parses and transforms lines into structured JSON, enriches records with metadata, and publishes them through a **pluggable sink** to the destination you configure.
+A lightweight Go service that tails log files, parses and transforms lines into structured JSON, optionally **filters** records with predicate rules, enriches them with metadata, and publishes them through a **pluggable sink** to the destination you configure.
 
 **User guide:** For install, configuration, sinks, Spring Boot logs, and watermarks, see the [GitHub Wiki](https://github.com/sanjuthomas/log-forwarder/wiki).
 
@@ -14,9 +14,10 @@ flowchart LR
         watcher["Watcher\ntail · rotate"]
         parser["Parser\nline · multiline"]
         transform["Transform\ndelimiter / regex"]
+        filter["Filter\nfield · compound · …"]
         enrich["Enrich\nhost · static · …"]
         sinkIf["Sink interface\nPublish · Close · Check"]
-        watcher --> parser --> transform --> enrich --> sinkIf
+        watcher --> parser --> transform --> filter --> enrich --> sinkIf
     end
 
     subgraph sinks["Pluggable sinks (one per config)"]
@@ -370,7 +371,82 @@ transform:
   on_error: wrap
 ```
 
-Only the `sink` block differs between the three Spring Boot examples — parser, transform, and enrichers are shared.
+Only the `sink` block differs between the three Spring Boot examples — parser, transform, enrichers, and optional filter are shared.
+
+### `filter`
+
+Optional predicate-based filtering **after transform, before enrich**. Omit the entire block to pass all records (default).
+
+Filtered records are **not** enriched or published. Watermarks still advance so tailing does not stall. Each filtered record increments `log_forwarder_lines_filtered`.
+
+| Field | Description |
+|-------|-------------|
+| `match` | How top-level rules combine: `all` (AND, default) or `any` (OR) |
+| `on_missing` | Default for field rules when a referenced field is absent: `drop` (default) or `pass` |
+| `rules` | List of predicate rules (see below) |
+
+**Built-in rule types:**
+
+| `type` | Purpose |
+|--------|---------|
+| `field` | Compare a transformed field value |
+| `compound` | Nested rules with their own `match: all` or `any` |
+
+**Field rule fields:**
+
+| Field | Description |
+|-------|-------------|
+| `field` | Record field name (for example `level`, `message`) |
+| `op` | `eq`, `neq`, `in`, or `not_in` |
+| `value` | Required for `eq` / `neq` |
+| `values` | Required for `in` / `not_in` |
+| `ignore_case` | Case-insensitive string comparison (default `false`) |
+| `on_missing` | Override filter-level default when the field is absent |
+
+**Errors only** (common for noisy legacy logs — case-insensitive):
+
+```yaml
+filter:
+  match: all
+  rules:
+    - type: field
+      field: level
+      op: in
+      values: [ERROR]
+      ignore_case: true
+```
+
+**Multiple levels (OR):**
+
+```yaml
+filter:
+  match: any
+  rules:
+    - type: field
+      field: level
+      op: in
+      values: [INFO, WARN, ERROR]
+      ignore_case: true
+```
+
+**AND with nested rules:**
+
+```yaml
+filter:
+  match: all
+  rules:
+    - type: field
+      field: level
+      op: eq
+      value: ERROR
+      ignore_case: true
+    - type: field
+      field: service
+      op: eq
+      value: billing
+```
+
+See [`configs/example-filter.yaml`](configs/example-filter.yaml) and [`configs/example-docker-filter.yaml`](configs/example-docker-filter.yaml). Register custom predicate types with `filter.Register` (see [Custom filter](#custom-filter)).
 
 ### `enrichers`
 
@@ -550,6 +626,29 @@ Adds fixed key/value pairs from `fields` to every record.
 
 Adds `hostname` (from `os.Hostname()`, or `"unknown"` on failure).
 
+## Built-in filters
+
+Filtering runs on the structured record produced by the transformer. Built-in predicate types:
+
+### `field`
+
+Compares a field in the transformed record.
+
+| `op` | Passes when |
+|------|-------------|
+| `eq` | Field equals `value` |
+| `neq` | Field does not equal `value` |
+| `in` | Field matches one of `values` |
+| `not_in` | Field matches none of `values` |
+
+When a referenced field is **missing**, the rule uses `on_missing` (`drop` by default). A dropped rule causes the record to be filtered out unless a compound `match: any` rule still passes.
+
+### `compound`
+
+Groups nested `rules` with `match: all` (AND) or `match: any` (OR).
+
+Custom filters implement the `filter.Predicate` interface and register via `filter.Register` — see [Custom extensions](#custom-extensions).
+
 ## Built-in sinks
 
 Every destination implements the same interface:
@@ -712,6 +811,38 @@ enrichers:
 
 Use `fields` to pass arbitrary string configuration into your enricher factory.
 
+### Custom filter
+
+1. Implement the `filter.Predicate` interface:
+
+```go
+type Predicate interface {
+    Match(record transform.Record) bool
+}
+```
+
+2. Register a factory in `init()`:
+
+```go
+func init() {
+    filter.Register("min_level", func(cfg config.FilterRuleConfig) (filter.Predicate, error) {
+        return minLevelFilter{min: cfg.Value}, nil
+    })
+}
+```
+
+3. Reference the type in config:
+
+```yaml
+filter:
+  match: all
+  rules:
+    - type: min_level
+      value: ERROR
+```
+
+The factory receives the full `FilterRuleConfig`, so custom filters can read standard fields (`value`, `values`, `field`, …) or you can extend validation for your registered type.
+
 ### Custom sink
 
 1. Implement the `sink.Sink` interface:
@@ -776,6 +907,23 @@ Verbose output:
 
 ```bash
 go test -v ./...
+```
+
+### Integration tests
+
+Automated end-to-end tests (watcher + pipeline + sink) live in [`internal/integration/`](internal/integration/). Filter scenarios include ERROR-only forwarding, `match: any`, metrics counters, watermark advance on filtered lines, and `on_missing: drop`.
+
+```bash
+go test ./internal/integration/ -v
+```
+
+See [`docs/integration-test-cases.txt`](docs/integration-test-cases.txt) for the full catalog (E2E-1–E2E-14, CFG-1, KAFKA-1, SMOKE-1).
+
+### Docker smoke tests
+
+```bash
+./scripts/docker-smoke.sh    # file sink + ERROR-only filter
+./scripts/kafka-smoke.sh     # Kafka round-trip + ERROR-only filter
 ```
 
 ### End-to-end test with Kafka
@@ -972,6 +1120,7 @@ Other useful log lines:
 |--------|-------------|
 | `log_forwarder_lines_read` | Lines read from watched files |
 | `log_forwarder_lines_published` | Lines published to the configured sink |
+| `log_forwarder_lines_filtered` | Lines dropped by configured filters (after transform) |
 | `log_forwarder_lines_skipped` | Lines dropped (`transform.on_error: skip`) |
 | `log_forwarder_pipeline_buffer_dropped` | Lines dropped when `pipeline.on_full: drop` and buffer is full |
 | `log_forwarder_transform_errors` | Transform failures |
@@ -1002,7 +1151,8 @@ Other useful log lines:
 | Publish latency | `histogram_quantile(0.95, rate(log_forwarder_publish_duration_bucket[5m]))` high | Sink load, network latency, or slow endpoint |
 | Buffer backlog | `log_forwarder_pipeline_buffer_depth / log_forwarder_pipeline_buffer_capacity > 0.8` sustained | Pipeline slower than ingest; risk of backpressure |
 | No files watched | `log_forwarder_files_watched == 0` while logs are expected | Wrong watch paths, patterns, or permissions |
-| Read/publish gap | `rate(log_forwarder_lines_read[5m])` >> `rate(log_forwarder_lines_published[5m])` | Transform skips, persistent publish failures, or pipeline stall |
+| Read/publish gap | `rate(log_forwarder_lines_read[5m])` >> `rate(log_forwarder_lines_published[5m])` | Transform skips, filter drops, persistent publish failures, or pipeline stall |
+| High filter rate | `rate(log_forwarder_lines_filtered[5m])` high vs `lines_read` | Expected when filtering noisy logs; tune rules if too aggressive |
 | Memory growth | `process_memory_usage` or `go_memory_used` trending up without stabilizing | Possible leak or sustained backlog |
 | Process down | `/health` failing or scrape target `up == 0` | Crash, OOM kill, or misconfigured port |
 
@@ -1026,14 +1176,25 @@ For a single-host deployment, combining Prometheus alerts on publish failures an
 Container images for sidecar and standalone deployments are published to [Docker Hub](https://hub.docker.com/r/sanjuthomas/log-forwarder) (`linux/amd64`, `linux/arm64`).
 
 ```bash
-docker compose up --build          # local smoke test
+docker compose up --build          # local smoke test (file sink, no filter)
+docker compose -f docker-compose.smoke.yaml up --build   # filter smoke (see below)
 docker compose -f docker-compose.kafka.yaml up --build   # Kafka round-trip (see below)
 docker pull sanjuthomas/log-forwarder:latest
 ```
 
+### Filter smoke test (file sink)
+
+Round-trip test with an **ERROR-only filter**: INFO/WARN lines are dropped, one ERROR record lands in JSONL, and `/metrics` exposes `log_forwarder_lines_filtered`.
+
+```bash
+./scripts/docker-smoke.sh
+```
+
+Uses `docker-compose.smoke.yaml` and `configs/example-docker-filter.yaml`.
+
 ### Kafka smoke test
 
-Round-trip test: forwarder → Kafka topic → consumer verifies JSON.
+Round-trip test: forwarder → Kafka topic → consumer verifies JSON. The smoke config applies an ERROR-only filter (WARN lines are dropped).
 
 ```bash
 ./scripts/kafka-smoke.sh
@@ -1077,21 +1238,25 @@ For custom transformers or enrichers, deploy the binary built from your own entr
 ## Project layout
 
 ```
-cmd/log-forwarder/     Main entrypoint (built-in transformers/enrichers only)
+cmd/log-forwarder/     Main entrypoint (built-in parsers/transformers/enrichers/filters only)
 configs/               Example and local config files
 docker/                Sample log data for docker compose
 Dockerfile             Multi-stage image (Alpine runtime, non-root forwarder)
 docker-compose.yaml    Local container smoke test (file sink)
+docker-compose.smoke.yaml  Filter smoke test stack (file sink, ERROR-only)
 docker-compose.kafka.yaml  Kafka round-trip smoke test stack
+scripts/docker-smoke.sh    Automated file-sink filter verification
 scripts/kafka-smoke.sh     Automated Kafka publish/consume verification
 examples/custom/       Custom binary with registered extensions
 internal/
   config/              YAML loading and validation
   metrics/             OpenTelemetry metrics and HTTP endpoints
   watcher/             File tailing and rotation detection
+  parser/              Parser registry and built-ins (line, multiline)
   transform/           Transformer registry and built-ins (delimiter, regex, tab)
+  filter/              Predicate registry and built-ins (field, compound)
   enrich/              Enricher registry and built-ins (static, host)
-  pipeline/            Transform → enrich → publish orchestration
+  pipeline/            Transform → filter → enrich → publish orchestration
   sink/                Pluggable sinks (kafka, file, http-noauth)
 ```
 

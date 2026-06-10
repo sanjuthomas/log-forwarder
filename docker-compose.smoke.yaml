@@ -1,0 +1,16 @@
+services:
+  log-forwarder:
+    build: .
+    image: sanjuthomas/log-forwarder:smoke
+    command: ["-config", "/config/config.yaml"]
+    volumes:
+      - ./docker/sample-data/filter-smoke.log:/var/log/app/filter-smoke.log:ro
+      - ./configs/example-docker-filter.yaml:/config/config.yaml:ro
+      - log-forwarder-smoke-state:/state
+      - ./docker/output/smoke-filter:/output
+    ports:
+      - "18081:8080"
+    restart: unless-stopped
+
+volumes:
+  log-forwarder-smoke-state:

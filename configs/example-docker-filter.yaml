@@ -1,28 +1,20 @@
-# Kafka sidecar / compose example — brokers use the Docker service name.
+# File-sink smoke test with ERROR-only filter.
 #
-# Local smoke test:
-#   ./scripts/kafka-smoke.sh
-#
-# Or manually:
-#   docker compose -f docker-compose.kafka.yaml up --build
+# Run: ./scripts/docker-smoke.sh
 
 watch:
   poll: 1s
   sources:
     - path: /var/log/app
       patterns:
-        - "kafka-smoke.log"
+        - "filter-smoke.log"
   state:
     path: /state/watermarks.json
 
 sink:
-  type: kafka
-  kafka:
-    brokers:
-      - kafka:9092
-    topic: logs
-    security:
-      protocol: PLAINTEXT
+  type: file
+  file:
+    path: /output/records.jsonl
 
 parser:
   type: line
@@ -48,17 +40,13 @@ filter:
 enrichers:
   - type: static
     fields:
-      application_id: kafka-smoke-test
+      application_id: filter-smoke-test
       environment: docker
   - type: host
 
 pipeline:
   buffer_size: 64
   on_full: block
-  publish_retry:
-    initial_backoff: 100ms
-    max_backoff: 1s
-    max_attempts: 0
 
 metrics:
   enabled: true
@@ -66,7 +54,6 @@ metrics:
   port: 8080
   path: /metrics
   readiness:
-    sink_check: true
     buffer_threshold: 0.8
 
 logging:

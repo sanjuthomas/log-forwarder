@@ -11,6 +11,7 @@ var (
 	enricherTypes    = map[string]struct{}{}
 	parserTypes      = map[string]struct{}{}
 	transformerTypes = map[string]struct{}{}
+	filterTypes      = map[string]struct{}{}
 )
 
 // RegisterSinkType records a sink type name for config validation. Custom sinks
@@ -46,6 +47,14 @@ func RegisterTransformType(name string) {
 	transformerTypes[name] = struct{}{}
 }
 
+// RegisterFilterType records a filter predicate type name for config validation.
+func RegisterFilterType(name string) {
+	if name == "" {
+		return
+	}
+	filterTypes[name] = struct{}{}
+}
+
 func knownSinkType(name string) bool {
 	_, ok := sinkTypes[name]
 	return ok
@@ -63,6 +72,11 @@ func knownParserType(name string) bool {
 
 func knownTransformType(name string) bool {
 	_, ok := transformerTypes[name]
+	return ok
+}
+
+func knownFilterType(name string) bool {
+	_, ok := filterTypes[name]
 	return ok
 }
 
@@ -91,5 +105,8 @@ func init() {
 	}
 	for _, name := range []string{"delimiter", "tab", "regex"} {
 		RegisterTransformType(name)
+	}
+	for _, name := range []string{"field", "compound"} {
+		RegisterFilterType(name)
 	}
 }

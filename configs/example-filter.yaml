@@ -1,0 +1,54 @@
+# Example config with ERROR-only filter (validated in CI).
+#
+# See internal/integration/filter_e2e_test.go and scripts/docker-smoke.sh.
+
+watch:
+  poll: 1s
+  paths:
+    - ./logs
+  patterns:
+    - "*.log"
+  state:
+    path: .log-forwarder/watermarks.json
+
+sink:
+  type: file
+  file:
+    path: ./output/records.jsonl
+
+parser:
+  type: line
+
+transform:
+  type: delimiter
+  delimiter: "\t"
+  columns:
+    - timestamp
+    - level
+    - message
+  on_error: wrap
+
+filter:
+  match: any
+  rules:
+    - type: field
+      field: level
+      op: in
+      values: [WARN, ERROR]
+      ignore_case: true
+
+enrichers:
+  - type: host
+
+pipeline:
+  buffer_size: 1024
+  on_full: block
+
+metrics:
+  enabled: true
+  host: 127.0.0.1
+  port: 8080
+
+logging:
+  level: info
+  format: text

@@ -204,6 +204,10 @@ func springBootConfig(logDir, sinkPath, statePath string) *config.Config {
 }
 
 func tabLineRegexConfig(logDir, sinkPath, statePath, onError string) *config.Config {
+	return tabLineConfig(logDir, sinkPath, statePath, onError, config.FilterConfig{})
+}
+
+func tabLineConfig(logDir, sinkPath, statePath, onError string, filter config.FilterConfig) *config.Config {
 	return &config.Config{
 		Watch: config.WatchConfig{
 			Poll: "50ms",
@@ -222,6 +226,7 @@ func tabLineRegexConfig(logDir, sinkPath, statePath, onError string) *config.Con
 			Pattern: `^(?P<timestamp>\S+)\t(?P<level>\S+)\t(?P<message>.+)$`,
 			OnError: onError,
 		},
+		Filter:    filter,
 		Enrichers: []config.EnricherConfig{{Type: "host"}},
 		Pipeline: config.PipelineConfig{
 			BufferSize: 64,
@@ -229,6 +234,21 @@ func tabLineRegexConfig(logDir, sinkPath, statePath, onError string) *config.Con
 		},
 		Metrics: config.MetricsConfig{Enabled: false},
 		Logging: config.LoggingConfig{Level: "error", Format: "text"},
+	}
+}
+
+func errorOnlyFilter() config.FilterConfig {
+	return config.FilterConfig{
+		Match: "all",
+		Rules: []config.FilterRuleConfig{
+			{
+				Type:       "field",
+				Field:      "level",
+				Op:         "in",
+				Values:     []string{"ERROR"},
+				IgnoreCase: true,
+			},
+		},
 	}
 }
 

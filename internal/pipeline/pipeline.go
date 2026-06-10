@@ -9,6 +9,7 @@ import (
 
 	"github.com/sanjuthomas/log-forwarder/internal/config"
 	"github.com/sanjuthomas/log-forwarder/internal/enrich"
+	"github.com/sanjuthomas/log-forwarder/internal/filter"
 	"github.com/sanjuthomas/log-forwarder/internal/metrics"
 	"github.com/sanjuthomas/log-forwarder/internal/parser"
 	"github.com/sanjuthomas/log-forwarder/internal/sink"
@@ -22,6 +23,7 @@ type Pipeline struct {
 	cfg         *config.Config
 	parser      parser.Parser
 	transformer transform.Transformer
+	filter      filter.Predicate
 	enrichers   []enrich.Enricher
 	sink        sink.Sink
 	watermarks  *state.Store
@@ -47,10 +49,15 @@ func New(cfg *config.Config, s sink.Sink, logger *slog.Logger, opts Options) (*P
 	if err != nil {
 		return nil, err
 	}
+	f, err := filter.New(cfg.Filter)
+	if err != nil {
+		return nil, err
+	}
 	return &Pipeline{
 		cfg:         cfg,
 		parser:      p,
 		transformer: t,
+		filter:      f,
 		enrichers:   chain,
 		sink:        s,
 		watermarks:  opts.Watermarks,
@@ -117,17 +124,21 @@ func (p *Pipeline) process(ctx context.Context, event parser.Event) error {
 
 	if !skipPublish {
 		record["_path"] = event.Path
-		record = enrich.Apply(p.enrichers, record)
+		if !p.filter.Match(record) {
+			p.metrics.RecordLineFiltered(ctx)
+		} else {
+			record = enrich.Apply(p.enrichers, record)
 
-		payload, err := json.Marshal(record)
-		if err != nil {
-			return fmt.Errorf("marshal record: %w", err)
-		}
+			payload, err := json.Marshal(record)
+			if err != nil {
+				return fmt.Errorf("marshal record: %w", err)
+			}
 
-		if err := p.publishWithRetry(ctx, payload); err != nil {
-			return err
+			if err := p.publishWithRetry(ctx, payload); err != nil {
+				return err
+			}
+			p.metrics.RecordLinePublished(ctx)
 		}
-		p.metrics.RecordLinePublished(ctx)
 	}
 
 	if p.watermarks != nil {
