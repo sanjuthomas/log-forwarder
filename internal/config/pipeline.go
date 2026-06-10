@@ -17,9 +17,23 @@ const (
 	DefaultTruncateSuffix            = "… [truncated]"
 	DefaultPublishBatchMaxBytes      = 1048576
 	DefaultPublishBatchFlushInterval = 100 * time.Millisecond
-	OnFlushFailureHibernate          = "hibernate"
-	DefaultHibernateWakeInterval     = 10 * time.Minute
+	OnFlushFailureHibernate              = "hibernate"
+	OnFlushFailureDeadLetter             = "dead_letter"
+	DefaultHibernateWakeInterval         = 10 * time.Minute
+	DefaultDeadLetterMaxConsecutiveBatches = 3
 )
+
+type DeadLetterConfig struct {
+	Path                  string `yaml:"path"`
+	MaxConsecutiveBatches int    `yaml:"max_consecutive_batches"`
+}
+
+func (c DeadLetterConfig) MaxConsecutiveBatchesOrDefault() int {
+	if c.MaxConsecutiveBatches <= 0 {
+		return DefaultDeadLetterMaxConsecutiveBatches
+	}
+	return c.MaxConsecutiveBatches
+}
 
 type HibernateConfig struct {
 	WakeEnabled  bool   `yaml:"wake_enabled"`
@@ -45,7 +59,8 @@ type PublishBatchConfig struct {
 	FlushInterval  string          `yaml:"flush_interval"`
 	OnFlushFailure string          `yaml:"on_flush_failure"`
 	MaxAttempts    int             `yaml:"max_attempts"`
-	Hibernate      HibernateConfig `yaml:"hibernate"`
+	Hibernate      HibernateConfig  `yaml:"hibernate"`
+	DeadLetter     DeadLetterConfig `yaml:"dead_letter"`
 }
 
 func (c PublishBatchConfig) OnFlushFailureOrDefault() string {
@@ -206,8 +221,18 @@ func (c *Config) validatePipeline() error {
 	}
 	switch c.Pipeline.PublishBatch.OnFlushFailureOrDefault() {
 	case OnFlushFailureHibernate:
+	case OnFlushFailureDeadLetter:
+		if c.Pipeline.PublishBatch.DeadLetter.Path == "" {
+			return fmt.Errorf("pipeline.publish_batch.dead_letter.path is required when on_flush_failure is dead_letter")
+		}
+		if c.Pipeline.PublishBatch.DeadLetter.MaxConsecutiveBatches < 0 {
+			return fmt.Errorf("pipeline.publish_batch.dead_letter.max_consecutive_batches must be >= 0")
+		}
+		if err := validateDeadLetterPath(c, c.Pipeline.PublishBatch.DeadLetter.Path); err != nil {
+			return err
+		}
 	default:
-		return fmt.Errorf("pipeline.publish_batch.on_flush_failure must be hibernate")
+		return fmt.Errorf("pipeline.publish_batch.on_flush_failure must be hibernate or dead_letter")
 	}
 
 	hibernate := c.Pipeline.PublishBatch.Hibernate

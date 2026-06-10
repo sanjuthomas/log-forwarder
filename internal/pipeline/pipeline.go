@@ -41,6 +41,9 @@ type Pipeline struct {
 	hibernateBatch       []pendingPublish
 	hibernateWakeRunning bool
 	hibernateWakeAfter   func(time.Duration) <-chan time.Time
+
+	dlqMu          sync.Mutex
+	consecutiveDLQ int
 }
 
 type Options struct {

@@ -49,15 +49,23 @@ func (p *Pipeline) flushItems(ctx context.Context, items []pendingPublish, reaso
 	}
 
 	if err := p.publishAndAdvance(ctx, items); err != nil {
-		if p.batchEnabled && p.cfg.Pipeline.PublishBatch.OnFlushFailureOrDefault() == config.OnFlushFailureHibernate {
-			p.enterHibernate(ctx, err, items)
-			p.metrics.RecordPublishBatchFlush(ctx, reason, "hibernate", len(items), batchBytes)
-			return nil
+		switch p.cfg.Pipeline.PublishBatch.OnFlushFailureOrDefault() {
+		case config.OnFlushFailureHibernate:
+			if p.batchEnabled {
+				p.enterHibernate(ctx, err, items)
+				p.metrics.RecordPublishBatchFlush(ctx, reason, "hibernate", len(items), batchBytes)
+				return nil
+			}
+		case config.OnFlushFailureDeadLetter:
+			if p.deadLetterEnabled() {
+				return p.handleDeadLetterFlush(ctx, items, err, reason, batchBytes)
+			}
 		}
 		p.metrics.RecordPublishBatchFlush(ctx, reason, "error", len(items), batchBytes)
 		return err
 	}
 
+	p.resetConsecutiveDLQ()
 	p.exitHibernate()
 	p.metrics.RecordPublishBatchFlush(ctx, reason, "success", len(items), batchBytes)
 	return nil
@@ -76,15 +84,10 @@ func (p *Pipeline) publishAndAdvance(ctx context.Context, items []pendingPublish
 		return err
 	}
 
-	for _, item := range items {
+	for range items {
 		p.metrics.RecordLinePublished(ctx)
-		if p.watermarks != nil {
-			if err := p.watermarks.Set(item.path, item.offset, item.inode); err != nil {
-				return fmt.Errorf("update watermark: %w", err)
-			}
-		}
 	}
-	return nil
+	return p.advanceWatermarks(ctx, items)
 }
 
 func (p *Pipeline) publishBatchWithRetry(ctx context.Context, payloads [][]byte) error {

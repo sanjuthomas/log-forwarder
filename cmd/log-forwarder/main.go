@@ -97,6 +97,12 @@ func main() {
 			}
 			return forwarderPipe.HibernatingSnapshot()
 		},
+		PublishConsecutiveDLQBatches: func() int64 {
+			if forwarderPipe == nil {
+				return 0
+			}
+			return forwarderPipe.ConsecutiveDLQSnapshot()
+		},
 	}
 	readiness := buildReadiness(cfg, recordSink, snapshot, func() bool {
 		if forwarderPipe == nil {

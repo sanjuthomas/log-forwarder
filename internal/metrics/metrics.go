@@ -39,10 +39,11 @@ type Collector struct {
 	publishFailures      metric.Int64Counter
 	publishRetries       metric.Int64Counter
 	publishTruncations   metric.Int64Counter
-	publishBatchFlushes  metric.Int64Counter
-	publishBatchSize     metric.Int64Histogram
-	publishBatchBytes    metric.Int64Histogram
-	publishDuration      metric.Float64Histogram
+	publishBatchFlushes      metric.Int64Counter
+	publishBatchSize         metric.Int64Histogram
+	publishBatchBytes        metric.Int64Histogram
+	publishDeadLetterBatches metric.Int64Counter
+	publishDuration          metric.Float64Histogram
 
 	provider *sdkmetric.MeterProvider
 	server   *http.Server
@@ -55,7 +56,8 @@ type Snapshot struct {
 	BufferDepth              func() int64
 	BufferCapacity           int64
 	PublishBufferActiveBytes func() int64
-	PublishHibernating       func() int64
+	PublishHibernating          func() int64
+	PublishConsecutiveDLQBatches func() int64
 }
 
 // New creates a metrics collector and HTTP server when metrics are enabled.
@@ -267,6 +269,15 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		return nil, err
 	}
 
+	publishDeadLetterBatches, err := meter.Int64Counter(
+		"log_forwarder.publish.dead_letter.batches",
+		metric.WithDescription("Total number of publish batches written to dead letter storage."),
+		metric.WithUnit("{batch}"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	publishDuration, err := meter.Float64Histogram(
 		"log_forwarder.publish.duration",
 		metric.WithDescription("Sink publish latency."),
@@ -344,6 +355,20 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		return nil, err
 	}
 
+	if _, err := meter.Int64ObservableGauge(
+		"log_forwarder.publish.consecutive_dlq_batches",
+		metric.WithDescription("Consecutive publish batches written to dead letter without a successful sink publish."),
+		metric.WithUnit("{batch}"),
+		metric.WithInt64Callback(func(_ context.Context, observer metric.Int64Observer) error {
+			if snapshot.PublishConsecutiveDLQBatches != nil {
+				observer.Observe(snapshot.PublishConsecutiveDLQBatches())
+			}
+			return nil
+		}),
+	); err != nil {
+		return nil, err
+	}
+
 	return &Collector{
 		linesRead:            linesRead,
 		linesPublished:       linesPublished,
@@ -355,10 +380,11 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		publishFailures:      publishFailures,
 		publishRetries:       publishRetries,
 		publishTruncations:  publishTruncations,
-		publishBatchFlushes: publishBatchFlushes,
-		publishBatchSize:    publishBatchSize,
-		publishBatchBytes:   publishBatchBytes,
-		publishDuration:     publishDuration,
+		publishBatchFlushes:      publishBatchFlushes,
+		publishBatchSize:         publishBatchSize,
+		publishBatchBytes:        publishBatchBytes,
+		publishDeadLetterBatches: publishDeadLetterBatches,
+		publishDuration:          publishDuration,
 	}, nil
 }
 
@@ -469,6 +495,13 @@ func (c *Collector) RecordPublishTruncation(ctx context.Context) {
 		return
 	}
 	c.publishTruncations.Add(ctx, 1)
+}
+
+func (c *Collector) RecordDeadLetterBatch(ctx context.Context, _ int) {
+	if c == nil || c.publishDeadLetterBatches == nil {
+		return
+	}
+	c.publishDeadLetterBatches.Add(ctx, 1)
 }
 
 func (c *Collector) RecordPublishBatchFlush(ctx context.Context, reason, result string, count int, bytes int) {

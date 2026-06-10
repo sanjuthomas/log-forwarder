@@ -1,6 +1,7 @@
 package config
 
 import (
+	"path/filepath"
 	"testing"
 )
 
@@ -166,6 +167,30 @@ func TestValidateHibernateWakeIntervalRejectsInvalidDuration(t *testing.T) {
 
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected validation error for invalid hibernate.wake_interval")
+	}
+}
+
+func TestValidateDeadLetterRequiresPath(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.Pipeline.PublishBatch.OnFlushFailure = OnFlushFailureDeadLetter
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error when dead_letter.path is missing")
+	}
+}
+
+func TestValidateDeadLetterPathWritable(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.Watch.Sources = []WatchSource{{Path: t.TempDir(), Patterns: []string{"*.log"}}}
+	cfg.Pipeline.PublishBatch.OnFlushFailure = OnFlushFailureDeadLetter
+	cfg.Pipeline.PublishBatch.DeadLetter.Path = filepath.Join(t.TempDir(), "dlq")
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
 	}
 }
 

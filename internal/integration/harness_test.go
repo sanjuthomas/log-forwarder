@@ -121,6 +121,12 @@ func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forw
 			}
 			return pipe.HibernatingSnapshot()
 		},
+		PublishConsecutiveDLQBatches: func() int64 {
+			if pipe == nil {
+				return 0
+			}
+			return pipe.ConsecutiveDLQSnapshot()
+		},
 	}
 	readiness := buildHarnessReadiness(cfg, recordSink, snapshot, func() bool {
 		if pipe == nil {
