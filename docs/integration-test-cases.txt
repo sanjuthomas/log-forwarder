@@ -79,6 +79,15 @@ E2E-14 TestE2E_FilterOnMissingDropExcludesWrappedRecords
                                              transform.on_error: wrap record without
                                              level field is filtered out (on_missing drop).
 
+E2E-15 TestE2E_WatermarkStallsWhenPublishFails
+                                             Always-failing sink with max publish attempts:
+                                             watermark file has no entry for the log file.
+
+E2E-16 TestE2E_WatermarkResumesWithoutDuplicateAfterPublishFailure
+                                             Line one published; line two fails to publish;
+                                             watermark unchanged during failure; recovery
+                                             publishes line two only (no duplicate line one).
+
 
 AUTOMATED — Configuration
 -------------------------
@@ -139,7 +148,7 @@ RECOMMENDED STAGING ADDITIONS (future automation)
 These could be automated later with docker-compose or testcontainers:
 
   - Kafka sink round-trip: forwarder -> Kafka -> consumer asserts JSON  [DONE: kafka-smoke.sh]
-  - Publish failure sustained: stop broker, assert watermark stall + metric alerts
+  - Publish failure sustained: stop broker, assert watermark stall + metric alerts  [PARTIAL: E2E-15, E2E-16]
   - Load generator: scripted append loop + assert buffer_depth stays bounded
   - File sink concurrent rotation under poll interval stress
 
