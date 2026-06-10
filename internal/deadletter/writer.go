@@ -33,7 +33,7 @@ func ValidateWritable(path string) error {
 }
 
 // WriteBatch writes one JSONL file per failed batch and returns the filename and total bytes written.
-func WriteBatch(dir string, payloads [][]byte) (filename string, bytes int, err error) {
+func WriteBatch(dir string, payloads [][]byte, info WriteInfo) (filename string, bytes int, err error) {
 	if len(payloads) == 0 {
 		return "", 0, fmt.Errorf("empty batch")
 	}
@@ -71,6 +71,20 @@ func WriteBatch(dir string, payloads [][]byte) (filename string, bytes int, err 
 	if err := os.Rename(tmpPath, finalPath); err != nil {
 		_ = os.Remove(tmpPath)
 		return "", 0, fmt.Errorf("commit dead letter file: %w", err)
+	}
+
+	createdAt := time.Now().UTC()
+	if err := writeMeta(dir, filename, Entry{
+		Filename:      filename,
+		CreatedAt:     createdAt.Format(time.RFC3339),
+		EventCount:    len(payloads),
+		Bytes:         int64(bytes),
+		FailureReason: info.FailureReason,
+		SinkType:      info.SinkType,
+		BatchAttempts: info.BatchAttempts,
+	}); err != nil {
+		_ = os.Remove(finalPath)
+		return "", 0, err
 	}
 	return filename, bytes, nil
 }

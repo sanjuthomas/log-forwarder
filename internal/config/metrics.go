@@ -45,6 +45,10 @@ func (c MetricsConfig) MetricsPath() string {
 	return path
 }
 
+func (c MetricsConfig) DeadLettersPath() string {
+	return "/deadletters"
+}
+
 func (c ReadinessConfig) ReadyPath() string {
 	if c.Path == "" {
 		return "/ready"

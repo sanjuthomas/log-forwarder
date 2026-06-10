@@ -15,7 +15,11 @@ func (p *Pipeline) handleDeadLetterFlush(ctx context.Context, items []pendingPub
 	}
 
 	dlqPath := p.cfg.Pipeline.PublishBatch.DeadLetter.Path
-	filename, writtenBytes, err := deadletter.WriteBatch(dlqPath, payloads)
+	filename, writtenBytes, err := deadletter.WriteBatch(dlqPath, payloads, deadletter.WriteInfo{
+		FailureReason: publishErr.Error(),
+		SinkType:      p.cfg.Sink.Type,
+		BatchAttempts: p.cfg.Pipeline.PublishBatch.MaxAttemptsOrDefault(p.cfg.Pipeline.PublishRetry),
+	})
 	if err != nil {
 		p.metrics.RecordPublishBatchFlush(ctx, reason, "error", len(items), batchBytes)
 		return fmt.Errorf("write dead letter batch: %w", err)

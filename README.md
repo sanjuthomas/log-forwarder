@@ -1108,13 +1108,18 @@ Set `metrics.enabled: true` in your config. The forwarder starts a small HTTP se
 |----------|---------|
 | `GET /metrics` | Prometheus scrape endpoint (OpenTelemetry) |
 | `GET /health` | Liveness probe — returns `{"status":"UP"}` |
+| `GET /ready` | Readiness probe (sink, buffer, hibernate) |
+| `GET /deadletters` | Dead letter batch **metadata** only (when `publish_batch.dead_letter.path` is configured) |
 
 Both endpoints share the same `metrics.host` and `metrics.port`. `/health` is only available when metrics are enabled.
 
 ```bash
 curl http://127.0.0.1:8080/health
 curl http://127.0.0.1:8080/metrics
+curl http://127.0.0.1:8080/deadletters
 ```
+
+`GET /deadletters` returns a JSON array of batch metadata (`filename`, `created_at`, `event_count`, `bytes`, `failure_reason`, `sink_type`, `batch_attempts`). It does **not** return log record bodies. Retrieve spilled content from the `dead_letter.path` volume (for example `kubectl exec` in Kubernetes). Do not expose the management port to untrusted networks without authentication.
 
 Bind to `127.0.0.1` when Prometheus runs on the same host. Use `0.0.0.0` only if a remote scraper needs direct access, and restrict access at the network layer.
 
