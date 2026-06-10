@@ -17,11 +17,28 @@ const (
 	DefaultTruncateSuffix            = "… [truncated]"
 	DefaultPublishBatchMaxBytes      = 1048576
 	DefaultPublishBatchFlushInterval = 100 * time.Millisecond
+	OnFlushFailureHibernate          = "hibernate"
 )
 
 type PublishBatchConfig struct {
-	MaxBytes      int    `yaml:"max_bytes"`
-	FlushInterval string `yaml:"flush_interval"`
+	MaxBytes       int    `yaml:"max_bytes"`
+	FlushInterval  string `yaml:"flush_interval"`
+	OnFlushFailure string `yaml:"on_flush_failure"`
+	MaxAttempts    int    `yaml:"max_attempts"`
+}
+
+func (c PublishBatchConfig) OnFlushFailureOrDefault() string {
+	if c.OnFlushFailure == "" {
+		return OnFlushFailureHibernate
+	}
+	return c.OnFlushFailure
+}
+
+func (c PublishBatchConfig) MaxAttemptsOrDefault(retry PublishRetryConfig) int {
+	if c.MaxAttempts > 0 {
+		return c.MaxAttempts
+	}
+	return retry.MaxAttempts
 }
 
 func (c PublishBatchConfig) Enabled() bool {
@@ -162,6 +179,14 @@ func (c *Config) validatePipeline() error {
 		if _, err := time.ParseDuration(c.Pipeline.PublishBatch.FlushInterval); err != nil {
 			return fmt.Errorf("pipeline.publish_batch.flush_interval: %w", err)
 		}
+	}
+	if c.Pipeline.PublishBatch.MaxAttempts < 0 {
+		return fmt.Errorf("pipeline.publish_batch.max_attempts must be >= 0")
+	}
+	switch c.Pipeline.PublishBatch.OnFlushFailureOrDefault() {
+	case OnFlushFailureHibernate:
+	default:
+		return fmt.Errorf("pipeline.publish_batch.on_flush_failure must be hibernate")
 	}
 
 	return nil

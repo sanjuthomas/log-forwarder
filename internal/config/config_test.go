@@ -146,6 +146,28 @@ func TestValidatePipelineRejectsNegativeMaxPublishBytes(t *testing.T) {
 	}
 }
 
+func TestValidatePublishBatchRejectsInvalidOnFlushFailure(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.Pipeline.PublishBatch.OnFlushFailure = "exit"
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error for invalid publish_batch.on_flush_failure")
+	}
+}
+
+func TestValidatePublishBatchRejectsNegativeMaxAttempts(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.Pipeline.PublishBatch.MaxAttempts = -1
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error for negative publish_batch.max_attempts")
+	}
+}
+
 func TestValidatePublishBatchRejectsInvalidFlushInterval(t *testing.T) {
 	t.Parallel()
 

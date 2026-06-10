@@ -81,6 +81,29 @@ func TestReadinessPipelineBufferHigh(t *testing.T) {
 	}
 }
 
+func TestReadinessSinkHibernating(t *testing.T) {
+	t.Parallel()
+
+	r := &Readiness{
+		Snapshot: Snapshot{
+			BufferCapacity: 10,
+			BufferDepth:    func() int64 { return 0 },
+		},
+		IsHibernating:    func() bool { return true },
+		SinkCheckEnabled: false,
+	}
+
+	rec := httptest.NewRecorder()
+	r.handler()(rec, httptest.NewRequest(http.MethodGet, "/ready", nil))
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, `"reason":"sink_hibernating"`) {
+		t.Fatalf("body = %q", body)
+	}
+}
+
 func TestReadinessNoFilesWatched(t *testing.T) {
 	t.Parallel()
 

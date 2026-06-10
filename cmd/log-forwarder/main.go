@@ -91,8 +91,19 @@ func main() {
 			}
 			return forwarderPipe.PublishBufferActiveBytes()
 		},
+		PublishHibernating: func() int64 {
+			if forwarderPipe == nil {
+				return 0
+			}
+			return forwarderPipe.HibernatingSnapshot()
+		},
 	}
-	readiness := buildReadiness(cfg, recordSink, snapshot)
+	readiness := buildReadiness(cfg, recordSink, snapshot, func() bool {
+		if forwarderPipe == nil {
+			return false
+		}
+		return forwarderPipe.Hibernating()
+	})
 	collector, shutdownMetrics, err := metrics.New(cfg.Metrics, snapshot, readiness)
 	if err != nil {
 		logger.Error("create metrics collector", "error", err)
@@ -177,7 +188,7 @@ func checkSinkAtStartup(s sink.Sink, cfg *config.Config) error {
 	return checker.Check(pingCtx)
 }
 
-func buildReadiness(cfg *config.Config, recordSink sink.Sink, snapshot metrics.Snapshot) *metrics.Readiness {
+func buildReadiness(cfg *config.Config, recordSink sink.Sink, snapshot metrics.Snapshot, isHibernating func() bool) *metrics.Readiness {
 	if !cfg.Metrics.Enabled {
 		return nil
 	}
@@ -188,6 +199,7 @@ func buildReadiness(cfg *config.Config, recordSink sink.Sink, snapshot metrics.S
 		RequireFiles:     cfg.Metrics.Readiness.RequireFiles,
 		SinkCheckEnabled: cfg.Metrics.Readiness.SinkCheckEnabled(),
 		SinkCheckTimeout: cfg.Metrics.Readiness.SinkCheckTimeoutDuration(cfg.SinkConnectTimeout()),
+		IsHibernating:    isHibernating,
 	}
 	if checker, ok := recordSink.(sink.Checker); ok {
 		readiness.CheckSink = checker.Check

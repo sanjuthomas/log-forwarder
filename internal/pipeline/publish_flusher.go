@@ -42,6 +42,12 @@ func (f *publishFlusher) enqueue(ctx context.Context, item pendingPublish) error
 		if f.shuttingDown {
 			return ctx.Err()
 		}
+		if f.p.Hibernating() {
+			if err := f.p.waitWhileHibernating(ctx); err != nil {
+				return err
+			}
+			continue
+		}
 		if f.flushErr != nil {
 			return f.flushErr
 		}
@@ -72,6 +78,9 @@ func (f *publishFlusher) triggerFlush(ctx context.Context, reason string) error 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	if f.p.Hibernating() {
+		return nil
+	}
 	if f.flushErr != nil {
 		return f.flushErr
 	}

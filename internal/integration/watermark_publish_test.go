@@ -17,6 +17,10 @@ type alwaysFailSink struct {
 }
 
 func (s *alwaysFailSink) Publish(_ context.Context, _ []byte) error {
+	return s.PublishBatch(context.Background(), [][]byte{nil})
+}
+
+func (s *alwaysFailSink) PublishBatch(_ context.Context, _ [][]byte) error {
 	atomic.AddInt32(&s.calls, 1)
 	return errors.New("publish failed")
 }
