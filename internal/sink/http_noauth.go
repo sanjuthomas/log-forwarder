@@ -43,6 +43,11 @@ func (h *httpNoauthSink) Check(ctx context.Context) error {
 		return fmt.Errorf("http check: %w", err)
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return fmt.Errorf("http check: status %d: %s", resp.StatusCode, bytes.TrimSpace(body))
+	}
 	_, _ = io.Copy(io.Discard, resp.Body)
 	return nil
 }
