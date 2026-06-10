@@ -124,8 +124,9 @@ func Default() *Config {
 			{Type: "host"},
 		},
 		Pipeline: PipelineConfig{
-			BufferSize: 1024,
-			OnFull:     "block",
+			BufferSize:      1024,
+			OnFull:          "block",
+			MaxPublishBytes: DefaultMaxPublishBytes,
 		},
 		Logging: LoggingConfig{
 			Level:          "info",

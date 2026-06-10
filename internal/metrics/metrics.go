@@ -36,6 +36,7 @@ type Collector struct {
 	transformErrors      metric.Int64Counter
 	publishFailures      metric.Int64Counter
 	publishRetries       metric.Int64Counter
+	publishTruncations   metric.Int64Counter
 	publishDuration      metric.Float64Histogram
 
 	provider *sdkmetric.MeterProvider
@@ -205,6 +206,15 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		return nil, err
 	}
 
+	publishTruncations, err := meter.Int64Counter(
+		"log_forwarder.publish.truncations",
+		metric.WithDescription("Total number of records truncated to fit max publish size."),
+		metric.WithUnit("{record}"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	publishRetries, err := meter.Int64Counter(
 		"log_forwarder.publish.retries",
 		metric.WithDescription("Total number of sink publish retries after a failure."),
@@ -272,6 +282,7 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		transformErrors:      transformErrors,
 		publishFailures:      publishFailures,
 		publishRetries:       publishRetries,
+		publishTruncations:   publishTruncations,
 		publishDuration:      publishDuration,
 	}, nil
 }
@@ -369,6 +380,13 @@ func (c *Collector) RecordPublishRetry(ctx context.Context) {
 		return
 	}
 	c.publishRetries.Add(ctx, 1)
+}
+
+func (c *Collector) RecordPublishTruncation(ctx context.Context) {
+	if c == nil || c.publishTruncations == nil {
+		return
+	}
+	c.publishTruncations.Add(ctx, 1)
 }
 
 func (c *Collector) RecordPublishDuration(ctx context.Context, duration time.Duration) {

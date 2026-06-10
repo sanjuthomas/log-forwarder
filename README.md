@@ -508,13 +508,21 @@ enrichers:
 | `publish_retry.initial_backoff` | Delay before the first retry (default `1s`) |
 | `publish_retry.max_backoff` | Maximum delay between retries (default `30s`) |
 | `publish_retry.max_attempts` | Give up after this many attempts (`0` = retry until shutdown, default) |
+| `max_publish_bytes` | Maximum serialized JSON payload size before publish (default `1048576`, 1 MiB — aligned with Kafka `message.max.bytes`). When exceeded, the configured truncate field is shortened so the record fits. Set to `0` to disable truncation. |
+| `truncate_field` | String field to shorten when over the limit (default `message`) |
+| `truncate_suffix` | Appended to truncated field text (default `… [truncated]`) |
 
 When a publish fails, the pipeline retries with exponential backoff (doubling delay up to `max_backoff`). Watermarks are not advanced until publish succeeds.
+
+Oversized records set `publish_truncated: true` and field metadata such as `message_truncated` and `message_original_bytes`. If the record is still too large after truncating the message field, the pipeline tries `_raw` (wrap records) and then the largest string field. UTF-8-safe truncation avoids splitting multibyte characters.
 
 ```yaml
 pipeline:
   buffer_size: 1024
   on_full: block
+  max_publish_bytes: 1048576
+  truncate_field: message
+  truncate_suffix: "… [truncated]"
   publish_timeout: 30s
   publish_retry:
     initial_backoff: 1s
@@ -1163,6 +1171,7 @@ Other useful log lines:
 | `log_forwarder_pipeline_buffer_dropped` | Lines dropped when `pipeline.on_full: drop` and buffer is full |
 | `log_forwarder_transform_errors` | Transform failures |
 | `log_forwarder_publish_failures` | Failed sink publish attempts |
+| `log_forwarder_publish_truncations` | Records truncated to fit `pipeline.max_publish_bytes` |
 | `log_forwarder_publish_retries` | Retries after a publish failure |
 | `log_forwarder_publish_duration` | Sink publish latency (histogram, seconds) |
 | `log_forwarder_files_watched` | Files currently being tailed |
