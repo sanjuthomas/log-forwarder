@@ -35,42 +35,40 @@ Gap: L1 does not prove runtime behavior. Most L3 tests use harness-built config
 Area                          L1   L2   L3/E2E   Smoke   Status
 ----                          --   --   ------   -----   ------
 watch.poll                    -    -    PARTIAL  -       PLANNED (implicit in all E2E)
-watch.paths + patterns          -    DONE PARTIAL  -       PLANNED CFG-2
-watch.sources (multi)           -    DONE -        -       PLANNED E2E-22
-watch.state.path              DONE DONE DONE      -       DONE
-watch.state.flush_interval    -    DONE DONE      -       DONE (E2E-20, E2E-21)
-watch.state.flush_every       -    DONE -        -       PLANNED E2E-23
+watch.paths + patterns          -    DONE DONE      -       DONE (CFG-2)
+watch.sources (multi)           -    DONE DONE      -       DONE (E2E-22)
+watch.state.flush_every       -    DONE DONE      -       DONE (E2E-23)
 
 parser.line                   -    -    DONE      -       DONE
 parser.multiline              -    DONE DONE      -       DONE (E2E-1,2,4)
 
-transform.delimiter           DONE DONE PARTIAL   DONE    PLANNED E2E-24
+transform.delimiter           DONE DONE DONE      DONE    DONE (E2E-24)
 transform.regex               DONE DONE DONE      -       DONE
-transform.tab                 -    DONE -        -       PLANNED (covered by E2E-24)
+transform.tab                 -    DONE DONE      -       DONE (E2E-24)
 transform.on_error skip       -    -    DONE      -       DONE (E2E-5)
 transform.on_error wrap       -    -    DONE      -       DONE (E2E-6)
 
 timestamp block               DONE DONE DONE      -       DONE
 filter field in/any           DONE DONE DONE      DONE    DONE (E2E-10–14)
-filter neq/not_in/compound    DONE DONE -         -       PLANNED E2E-25
-filter.on_missing pass        DONE DONE -         -       PLANNED E2E-26
+filter neq/not_in/compound    DONE DONE DONE      -       DONE (E2E-25, E2E-26)
+filter.on_missing pass        DONE DONE DONE      -       DONE (E2E-26)
 
 enrichers.static + host       DONE DONE PARTIAL   -       PARTIAL
 
 sink.file                     DONE -    DONE      DONE    DONE
 sink.http-noauth              DONE DONE DONE      -       DONE (E2E-7)
-sink.kafka                    DONE DONE PARTIAL   DONE    PARTIAL (KAFKA-1 smoke; mock unit)
+sink.kafka                    DONE DONE DONE      DONE    DONE (KAFKA-1, E2E-32)
 sink.kafka TLS/SASL modes     DONE DONE -         MANUAL  MANUAL (M-1)
 sink.kafka GSSAPI             DONE DONE -         -       N/A (not implemented)
 
-pipeline.buffer_size          DONE DONE PARTIAL   -       PLANNED E2E-27
-pipeline.on_full block        DONE DONE PARTIAL   -       PLANNED E2E-27
-pipeline.on_full drop         -    DONE PARTIAL   -       PLANNED E2E-28
-pipeline.publish_timeout      DONE DONE -         -       PLANNED E2E-29
+pipeline.buffer_size          DONE DONE DONE      -       DONE (E2E-27, E2E-28)
+pipeline.on_full block        DONE DONE DONE      -       DONE (E2E-27)
+pipeline.on_full drop         -    DONE DONE      -       DONE (E2E-28)
+pipeline.publish_timeout      DONE DONE DONE      -       DONE (E2E-29)
 pipeline.publish_retry        DONE DONE DONE      -       DONE (E2E-8)
 pipeline.publish_batch        DONE DONE DONE      -       DONE (E2E-17–19, PB-*)
 pipeline.hibernate            DONE DONE DONE      -       DONE (E2E-18)
-pipeline.hibernate.wake       DONE DONE -         -       PLANNED E2E-30
+pipeline.hibernate.wake       DONE DONE DONE      -       DONE (E2E-30, PB-4)
 pipeline.dead_letter          DONE DONE DONE      DONE    DONE (E2E-19, KAFKA-2)
 pipeline.max_publish_bytes    DONE DONE DONE      -       DONE
 
@@ -78,7 +76,7 @@ logging.file                  DONE DONE -         -       PLANNED CFG-3
 logging.status_interval       DONE -    -         -       PLANNED CFG-3
 
 metrics.enabled               DONE DONE PARTIAL   -       PARTIAL (E2E-9 presence)
-metrics.readiness             DONE DONE PARTIAL   PARTIAL PLANNED E2E-31
+metrics.readiness             DONE DONE DONE      PARTIAL DONE (E2E-31)
 
 copytruncate rotation         -    -    -         -       N/A (unsupported)
 custom registered types       DONE DONE -         -       N/A (v2)
@@ -87,8 +85,17 @@ custom registered types       DONE DONE -         -       N/A (v2)
 3. Planned tests (by priority)
 ------------------------------
 
-P0 — Documented behavior, high operator risk
-------------------------------------------
+P0–P2 items below are implemented in PRs #67–#77 (issues #55–#65). Remaining P2/P3:
+
+  CFG-3   TestIntegration_LoggingFileAndStatusInterval
+  KAFKA-3 Per examples/kafka/*.yaml TLS/SASL round-trip (testcontainers)
+  M-*     Manual staging items in integration-test-cases.txt
+
+(Sections below retain original test IDs for reference.)
+
+
+3a. Implemented tests (PRs #67–#77)
+----------------------------------
 
 ID      Proposed test name                              Config keys exercised
 --      ------------------                              ---------------------

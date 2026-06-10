@@ -116,6 +116,59 @@ E2E-21 TestE2E_DebouncedWatermarkGracefulStopNoReplay
                                              flush); restart appends new lines only with no
                                              duplicate publish of earlier records.
 
+E2E-22 TestE2E_MultipleWatchSourcesSingleProcess
+                                             Two watch.sources paths in one process; both
+                                             log files published; separate watermark entries.
+
+E2E-23 TestE2E_WatermarkFlushEveryPersistsOnCount
+                                             watch.state.flush_every persists watermark on
+                                             count; crash leaves partial offset; restart
+                                             replays unpersisted tail only.
+
+E2E-24 TestE2E_DelimiterTransformFileAndHTTP
+                                             Delimiter transform with file sink and
+                                             http-noauth sink (httptest); named columns
+                                             and host enricher in payload.
+
+E2E-25 TestE2E_FilterCompoundAndNotIn
+                                             Compound filter (match any) plus not_in and neq
+                                             operators; only expected records in sink.
+
+E2E-26 TestE2E_FilterOnMissingPassPublishesWrapped
+                                             filter.on_missing: pass with transform.on_error:
+                                             wrap publishes {_raw, _error} wrapper.
+
+E2E-27 TestE2E_OnFullBlockBackpressureAndReadiness
+                                             pipeline.on_full: block with stall sink; channel
+                                             fills; /ready NOT_READY (pipeline_buffer_high).
+
+E2E-28 TestE2E_OnFullDropIncrementsMetricAndSkipsWatermark
+                                             pipeline.on_full: drop under backpressure;
+                                             buffer_dropped metric; dropped lines never
+                                             publish even after restart.
+
+E2E-29 TestE2E_PublishTimeoutFailsSlowPublish
+                                             pipeline.publish_timeout with slow sink; no
+                                             records published when timeout exceeded.
+
+E2E-30 TestE2E_HibernateWakeRecoversWithoutRestart
+                                             publish_batch.hibernate.wake_enabled: hibernate
+                                             then sink recovery; /ready returns 200 without
+                                             process restart.
+
+E2E-31 TestE2E_ReadinessReasonsOnLiveForwarder
+                                             Live forwarder /ready reasons: sink_unreachable,
+                                             pipeline_buffer_high, no_files_watched.
+
+E2E-32 TestE2E_SpringBootMultilineKafkaSink
+                                             Spring Boot multiline stack trace via capture
+                                             sink (no broker); one ERROR record with folded
+                                             message.
+
+E2E-33 TestE2E_SpringBootMultilineHTTPSink
+                                             Same multiline fixture via http-noauth sink
+                                             (httptest POST body).
+
 
 AUTOMATED — Publish batch unit tests (internal/pipeline)
 --------------------------------------------------------
@@ -164,6 +217,11 @@ ID    Test name                              Scenario
 CFG-1 TestIntegration_ExampleConfigsValidate
                                              All configs/*.yaml and examples/kafka/*.yaml
                                              load and pass Validate() without error.
+
+CFG-2 TestIntegration_ExampleConfigsRunEndToEnd
+                                             Table-driven runtime test: each example YAML
+                                             rewritten to temp paths, one probe line
+                                             appended, file sink asserts publish.
 
 KAFKA-1 scripts/kafka-smoke.sh (CI on every PR to main; also workflow_dispatch)
                                              docker-compose.kafka.yaml round-trip with
@@ -257,9 +315,9 @@ TEST MATRIX (sink x parser)
 ---------------------------
 
                     line parser    multiline parser
-file sink           E2E-5,6,10-21  E2E-1,2,3,4
-http-noauth sink    E2E-7          (same as E2E-1 pattern — add if needed)
-kafka sink          KAFKA-1, manual M-1 (TLS/SASL)   KAFKA-1 (PLAINTEXT + filter)
+file sink           E2E-5,6,10-33  E2E-1,2,3,4,32
+http-noauth sink    E2E-7,24,33    E2E-33
+kafka sink          KAFKA-1, E2E-32, manual M-1 (TLS/SASL)   KAFKA-1, E2E-32
 docker file smoke   SMOKE-1        —
 
 
@@ -279,24 +337,14 @@ OPERATOR NOTES (documented, not automated)
 PLANNED — Config combination tests
 ----------------------------------
 
-See docs/config-test-plan.txt for the full matrix, priorities (P0–P3), and GitHub
-issue mapping. Highlights:
-
-  E2E-27  on_full block backpressure + readiness buffer_threshold
-  E2E-28  on_full drop + buffer_dropped + watermark skip
-  E2E-29  publish_timeout
-  E2E-30  hibernate wake_enabled recovery
-  E2E-31  readiness reasons on live forwarder
-  CFG-2   table-driven runtime test for all example YAML configs
+See docs/config-test-plan.txt. Issues #55–#65 (E2E-22–33, CFG-2) are implemented in
+PRs #67–#77; merge those PRs to enable the tests in CI.
 
 
 COVERAGE GAPS (acceptable for v1)
 ---------------------------------
 
-  - No test for pipeline buffer full / on_full: block backpressure  → E2E-27
-  - No test for on_full: drop offset/watermark interaction          → E2E-28
   - No test for copytruncate rotation (unsupported; documented in README)
-  - No test for multiple watch sources in one process               → E2E-22
   - No test for custom registered parser/transform/sink
   - Metrics test does not assert exact counter values (presence only)
-  - Example YAML configs validate only (CFG-1); no runtime table     → CFG-2
+  - CFG-3 logging.file and logging.status_interval (P2 in config-test-plan)
