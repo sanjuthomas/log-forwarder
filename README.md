@@ -114,6 +114,8 @@ Controls which log files are tailed.
 | `paths` | Directories to watch when all use the same `patterns` |
 | `patterns` | Glob patterns applied to every path in `paths` |
 | `state.path` | Path to the watermark file (default `.log-forwarder/watermarks.json`) |
+| `state.flush_interval` | How often to persist watermarks to disk (default `1s`; set `0` to persist every line) |
+| `state.flush_every` | Optional count-based flush: persist after this many in-memory updates (default disabled) |
 
 Use **`sources`** when patterns differ per directory, or **`paths`** + **`patterns`** when every directory shares the same globs.
 
@@ -166,11 +168,15 @@ watch:
   poll: 1s
   state:
     path: /var/lib/log-forwarder/watermarks.json
+    flush_interval: 1s
+    flush_every: 0
   sources:
     - path: ./logs/app
       patterns:
         - "*.log"
 ```
+
+**Persistence:** Watermark updates are kept in memory on every processed line and written to disk on a schedule (`flush_interval`, default `1s`) or after `flush_every` updates when set. A final flush runs on graceful shutdown (`SIGINT` / `SIGTERM`). Set `flush_interval: 0` to persist after every line (previous behavior, higher disk I/O). On crash or `kill -9`, the on-disk watermark may lag by up to one flush window; already-published lines may be sent again after restart (**at-least-once**).
 
 Use an absolute path in production so the file location does not depend on where the service is started from. The forwarder logs the resolved path at startup (`state_path` in the `log forwarder started` message).
 
@@ -195,7 +201,7 @@ Use an absolute path in production so the file location does not depend on where
 **How it works:**
 
 1. **First run** — no watermark file exists (or no entry for a file). The forwarder tails from the **beginning** of the file.
-2. **After each record is published** — the watermark for that source file is updated to the offset of the last processed line (or the last line of a multiline record).
+2. **After each processed line** — the in-memory watermark for that source file is updated to the offset of the last processed line (or the last line of a multiline record). Filtered and transform-skipped lines advance the watermark too; only publish failures stall it. The watermark file on disk is updated on the flush schedule (see above).
 3. **Restart** — if the file's inode matches the stored value, tailing **resumes from `offset`**. The log line `resuming file from watermark` indicates this.
 4. **Log rotation** — if the path is reused but the **inode changed** (typical after `logrotate`), the stored offset is ignored and the forwarder tails the new file from the **beginning**. The log line `tailing file from beginning` indicates this.
 

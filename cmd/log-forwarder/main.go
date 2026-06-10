@@ -35,11 +35,19 @@ func main() {
 	}
 	defer logCloser.Close()
 
-	watermarks, err := state.NewStore(cfg.StatePath())
+	watermarks, err := state.NewStore(cfg.StatePath(), watermarkOptions(cfg))
 	if err != nil {
 		logger.Error("load watermarks", "path", cfg.StatePath(), "error", err)
 		os.Exit(1)
 	}
+	flushCtx, flushCancel := context.WithCancel(context.Background())
+	go watermarks.RunPeriodicFlush(flushCtx)
+	defer func() {
+		flushCancel()
+		if err := watermarks.Flush(); err != nil {
+			logger.Error("flush watermarks", "error", err)
+		}
+	}()
 
 	recordSink, err := sink.New(cfg.Sink)
 	if err != nil {
@@ -185,4 +193,12 @@ func loadConfig(path string) (*config.Config, error) {
 		return config.Default(), nil
 	}
 	return config.Load(path)
+}
+
+func watermarkOptions(cfg *config.Config) state.Options {
+	flushInterval, flushEvery := cfg.Watch.State.PersistOptions()
+	return state.Options{
+		FlushInterval: flushInterval,
+		FlushEvery:    flushEvery,
+	}
 }
