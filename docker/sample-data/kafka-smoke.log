@@ -1,2 +1,2 @@
-2024-01-01T00:00:00Z	INFO	kafka integration smoke
+2024-01-01T00:00:00Z	ERROR	kafka integration smoke
 2024-01-01T00:00:01Z	WARN	second kafka smoke line

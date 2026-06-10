@@ -28,6 +28,18 @@ until curl -sf "${FORWARDER_URL}/ready" >/dev/null; do
 done
 echo "Forwarder is ready."
 
+echo "Waiting for at least one published record..."
+publish_deadline=$((SECONDS + 30))
+until curl -sf "${FORWARDER_URL}/metrics" | grep -qE 'log_forwarder_lines_published_total(\{[^}]*\})? [1-9]'; do
+	if (( SECONDS >= publish_deadline )); then
+		echo "timeout waiting for log_forwarder_lines_published" >&2
+		curl -sf "${FORWARDER_URL}/metrics" >&2 || true
+		"${COMPOSE[@]}" logs log-forwarder >&2 || true
+		exit 1
+	fi
+	sleep 1
+done
+
 echo "Consuming from Kafka topic logs ..."
 messages="$("${COMPOSE[@]}" exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh \
 	--bootstrap-server localhost:9092 \
