@@ -189,6 +189,50 @@ func TestPipelinePublishBatchWatermarkAfterFlush(t *testing.T) {
 	}
 }
 
+func TestPipelineSyncPublishSkipsBatchFailurePolicies(t *testing.T) {
+	watermarks, err := state.NewStore(filepath.Join(t.TempDir(), "watermarks.json"))
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	cfg := testPipelineConfig()
+	disablePublishBatch(cfg)
+	cfg.Pipeline.PublishBatch.OnFlushFailure = config.OnFlushFailureHibernate
+	cfg.Pipeline.PublishBatch.MaxAttempts = 2
+	cfg.Pipeline.PublishRetry = config.PublishRetryConfig{
+		InitialBackoff: "1ms",
+		MaxBackoff:     "5ms",
+		MaxAttempts:    2,
+	}
+
+	const path = "/tmp/test.log"
+	sink := &flakySink{failures: 10}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pipe, err := New(cfg, sink, logger, Options{Watermarks: watermarks})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	lines := make(chan watcher.LineEvent, 1)
+	lines <- watcher.LineEvent{
+		Path:   path,
+		Line:   []byte("2024-01-01T00:00:00Z\tINFO\thello"),
+		Offset: 42,
+		Inode:  9,
+	}
+	close(lines)
+
+	if err := pipe.Run(context.Background(), lines); err == nil {
+		t.Fatal("expected synchronous publish failure")
+	}
+	if pipe.Hibernating() {
+		t.Fatal("hibernate policy applies only when publish_batch is enabled")
+	}
+	if _, ok := watermarks.Get(path); ok {
+		t.Fatal("watermark must not advance when publish fails")
+	}
+}
+
 func TestPipelinePublishBatchWatermarkStalledOnFlushFailure(t *testing.T) {
 	watermarks, err := state.NewStore(filepath.Join(t.TempDir(), "watermarks.json"))
 	if err != nil {
