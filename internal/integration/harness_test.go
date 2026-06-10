@@ -115,8 +115,19 @@ func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forw
 			}
 			return pipe.PublishBufferActiveBytes()
 		},
+		PublishHibernating: func() int64 {
+			if pipe == nil {
+				return 0
+			}
+			return pipe.HibernatingSnapshot()
+		},
 	}
-	readiness := buildHarnessReadiness(cfg, recordSink, snapshot)
+	readiness := buildHarnessReadiness(cfg, recordSink, snapshot, func() bool {
+		if pipe == nil {
+			return false
+		}
+		return pipe.Hibernating()
+	})
 	collector, shutdownMetrics, err := metrics.New(cfg.Metrics, snapshot, readiness)
 	if err != nil {
 		t.Fatalf("metrics.New() error = %v", err)
@@ -430,7 +441,7 @@ func setupDirs(t *testing.T) (logDir, sinkPath, statePath string) {
 	return logDir, sinkPath, statePath
 }
 
-func buildHarnessReadiness(cfg *config.Config, recordSink sink.Sink, snapshot metrics.Snapshot) *metrics.Readiness {
+func buildHarnessReadiness(cfg *config.Config, recordSink sink.Sink, snapshot metrics.Snapshot, isHibernating func() bool) *metrics.Readiness {
 	if !cfg.Metrics.Enabled {
 		return nil
 	}
@@ -440,6 +451,7 @@ func buildHarnessReadiness(cfg *config.Config, recordSink sink.Sink, snapshot me
 		RequireFiles:     cfg.Metrics.Readiness.RequireFiles,
 		SinkCheckEnabled: cfg.Metrics.Readiness.SinkCheckEnabled(),
 		SinkCheckTimeout: cfg.Metrics.Readiness.SinkCheckTimeoutDuration(cfg.SinkConnectTimeout()),
+		IsHibernating:    isHibernating,
 	}
 	if checker, ok := recordSink.(sink.Checker); ok {
 		readiness.CheckSink = checker.Check

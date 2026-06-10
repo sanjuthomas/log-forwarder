@@ -533,10 +533,12 @@ enrichers:
 | `truncate_suffix` | Appended to truncated field text (default `… [truncated]`) |
 | `publish_batch.max_bytes` | Sum of serialized JSON sizes in the publish buffer before flush (default `1048576`, 1 MiB). Set to `0` to disable size-based flush. |
 | `publish_batch.flush_interval` | Maximum time records wait in the publish buffer (default `100ms`). Set to `0` to disable time-based flush. Set **both** `max_bytes: 0` and `flush_interval: 0` to publish each record synchronously (previous behavior). |
+| `publish_batch.on_flush_failure` | Policy when a batch flush fails after retries (default `hibernate`). In hibernate mode the process stays alive, watermarks for the failed batch are not advanced, ingest blocks on the publish buffer, and `/ready` returns `503` with `reason: sink_hibernating`. Wake-up retry is configured separately (see issue #36). |
+| `publish_batch.max_attempts` | Per-batch publish attempts before `on_flush_failure` applies (default: `publish_retry.max_attempts`). |
 
 `buffer_size` is the **watcher → pipeline** line-event channel depth (event count). `publish_batch` is a separate byte/time buffer **after enrich**, before the sink.
 
-When a publish fails, the pipeline retries with exponential backoff (doubling delay up to `max_backoff`). Watermarks are not advanced until a batch flush succeeds.
+When a publish fails, the pipeline retries with exponential backoff (doubling delay up to `max_backoff`). Watermarks are not advanced until a batch flush succeeds. When batch flush retries are exhausted and `on_flush_failure` is `hibernate` (the default), the forwarder enters **hibernate** mode: publishing stops, the failed batch’s watermarks stay put, and new lines block on the publish buffer until hibernate is cleared (wake-up retry is a separate feature). `/health` stays `200` (the process is alive); `/ready` returns `503` with `reason: sink_hibernating` so load balancers can stop sending traffic without restarting the pod.
 
 Publish batches are flushed on size threshold, timer, or shutdown. While a batch is flushing asynchronously, the pipeline continues appending to a second active buffer; if that buffer fills before the in-flight flush completes, ingest blocks until the sink commit finishes (backpressure). Kafka and file sinks implement `PublishBatch`; other sinks fall back to sequential `Publish` calls per record in the batch.
 
@@ -552,6 +554,8 @@ pipeline:
   publish_batch:
     max_bytes: 1048576
     flush_interval: 100ms
+    on_flush_failure: hibernate
+    max_attempts: 0
   publish_timeout: 30s
   publish_retry:
     initial_backoff: 1s
@@ -1129,6 +1133,9 @@ Use `/ready` for **readiness** probes when `metrics.enabled: true`. It returns `
 - the sink fails its connectivity check (when the sink implements `sink.Checker` and `metrics.readiness.sink_check` is true)
 - `pipeline buffer depth / capacity` exceeds `metrics.readiness.buffer_threshold` (default `0.8`)
 - `metrics.readiness.require_files: true` and no log files are being tailed
+- the forwarder is in **hibernate** mode after a failed publish batch (`reason: sink_hibernating`)
+
+Use `/health` for liveness only during hibernate: the process is still running and blocked on backpressure, but it should not receive new traffic until `/ready` is `200` again.
 
 **Kubernetes example:**
 
@@ -1202,7 +1209,8 @@ Other useful log lines:
 | `log_forwarder_timestamp_parse_failures` | Records that fell back to processing time during timestamp normalization |
 | `log_forwarder_publish_failures` | Failed sink publish attempts |
 | `log_forwarder_publish_truncations` | Records truncated to fit `pipeline.max_publish_bytes` |
-| `log_forwarder_publish_batch_flushes` | Publish buffer flushes (`reason`: `size`, `timer`, `shutdown`) |
+| `log_forwarder_publish_batch_flushes` | Publish buffer flushes (`reason`: `size`, `timer`, `shutdown`; `result`: `success`, `hibernate`, `error`) |
+| `log_forwarder_publish_hibernating` | `1` when the forwarder is in sink hibernate mode after a failed batch flush |
 | `log_forwarder_publish_batch_size` | Records per publish batch flush (histogram) |
 | `log_forwarder_publish_batch_bytes` | Serialized JSON bytes per publish batch flush (histogram) |
 | `log_forwarder_publish_buffer_active_bytes` | Serialized JSON bytes waiting in the publish buffer |

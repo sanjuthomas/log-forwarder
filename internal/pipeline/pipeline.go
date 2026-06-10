@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/sanjuthomas/log-forwarder/internal/config"
@@ -33,6 +34,10 @@ type Pipeline struct {
 	batchEnabled bool
 	flusher      *publishFlusher
 	runCtx       context.Context
+
+	hibernateMu     sync.RWMutex
+	hibernating     bool
+	hibernateDetail string
 }
 
 type Options struct {

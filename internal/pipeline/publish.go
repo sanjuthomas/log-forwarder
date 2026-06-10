@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/sanjuthomas/log-forwarder/internal/config"
 	"github.com/sanjuthomas/log-forwarder/internal/sink"
 )
 
@@ -46,11 +47,18 @@ func (p *Pipeline) flushItems(ctx context.Context, items []pendingPublish, reaso
 	for _, item := range items {
 		batchBytes += len(item.payload)
 	}
-	p.metrics.RecordPublishBatchFlush(ctx, reason, len(items), batchBytes)
 
 	if err := p.publishAndAdvance(ctx, items); err != nil {
+		if p.batchEnabled && p.cfg.Pipeline.PublishBatch.OnFlushFailureOrDefault() == config.OnFlushFailureHibernate {
+			p.enterHibernate(ctx, err)
+			p.metrics.RecordPublishBatchFlush(ctx, reason, "hibernate", len(items), batchBytes)
+			return nil
+		}
+		p.metrics.RecordPublishBatchFlush(ctx, reason, "error", len(items), batchBytes)
 		return err
 	}
+
+	p.metrics.RecordPublishBatchFlush(ctx, reason, "success", len(items), batchBytes)
 	return nil
 }
 
@@ -82,7 +90,7 @@ func (p *Pipeline) publishBatchWithRetry(ctx context.Context, payloads [][]byte)
 	retry := p.cfg.Pipeline.PublishRetry
 	backoff := retry.InitialBackoffDuration()
 	maxBackoff := retry.MaxBackoffDuration()
-	maxAttempts := retry.MaxAttempts
+	maxAttempts := p.cfg.Pipeline.PublishBatch.MaxAttemptsOrDefault(retry)
 	publishTimeout := p.cfg.Pipeline.PublishTimeoutDuration()
 
 	attempt := 0

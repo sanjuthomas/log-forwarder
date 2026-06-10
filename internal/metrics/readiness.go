@@ -12,6 +12,7 @@ import (
 type Readiness struct {
 	Snapshot         Snapshot
 	CheckSink        func(ctx context.Context) error
+	IsHibernating    func() bool
 	BufferThreshold  float64
 	RequireFiles     bool
 	SinkCheckEnabled bool
@@ -27,6 +28,13 @@ type readinessResponse struct {
 func (r *Readiness) evaluate(ctx context.Context) readinessResponse {
 	if r == nil {
 		return readinessResponse{Status: "READY"}
+	}
+
+	if r.IsHibernating != nil && r.IsHibernating() {
+		return readinessResponse{
+			Status: "NOT_READY",
+			Reason: "sink_hibernating",
+		}
 	}
 
 	if r.SinkCheckEnabled && r.CheckSink != nil {

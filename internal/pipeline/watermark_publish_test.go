@@ -29,6 +29,7 @@ func TestPipelineWatermarkNotAdvancedWhenPublishFails(t *testing.T) {
 		MaxBackoff:     "5ms",
 		MaxAttempts:    2,
 	}
+	disablePublishBatch(cfg)
 
 	const path = "/tmp/test.log"
 	sink := &flakySink{failures: 10}
@@ -120,6 +121,7 @@ func TestPipelineWatermarkStallsOnSecondLineUntilFirstLinePublishes(t *testing.T
 		MaxBackoff:     "5ms",
 		MaxAttempts:    2,
 	}
+	disablePublishBatch(cfg)
 
 	const path = "/tmp/test.log"
 	sink := &flakySink{failures: 10}

@@ -80,6 +80,7 @@ func TestPipelinePublishRetryExhaustsMaxAttempts(t *testing.T) {
 		MaxBackoff:     "5ms",
 		MaxAttempts:    2,
 	}
+	disablePublishBatch(cfg)
 
 	sink := &flakySink{failures: 10}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -117,6 +118,7 @@ func TestPipelinePublishTimeout(t *testing.T) {
 		MaxBackoff:     "5ms",
 		MaxAttempts:    1,
 	}
+	disablePublishBatch(cfg)
 
 	sink := &slowSink{delay: 50 * time.Millisecond}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))

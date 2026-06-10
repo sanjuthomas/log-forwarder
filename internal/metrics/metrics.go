@@ -55,6 +55,7 @@ type Snapshot struct {
 	BufferDepth              func() int64
 	BufferCapacity           int64
 	PublishBufferActiveBytes func() int64
+	PublishHibernating       func() int64
 }
 
 // New creates a metrics collector and HTTP server when metrics are enabled.
@@ -329,6 +330,20 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		return nil, err
 	}
 
+	if _, err := meter.Int64ObservableGauge(
+		"log_forwarder.publish.hibernating",
+		metric.WithDescription("Whether the forwarder is in sink hibernate mode after a failed publish batch."),
+		metric.WithUnit("{bool}"),
+		metric.WithInt64Callback(func(_ context.Context, observer metric.Int64Observer) error {
+			if snapshot.PublishHibernating != nil {
+				observer.Observe(snapshot.PublishHibernating())
+			}
+			return nil
+		}),
+	); err != nil {
+		return nil, err
+	}
+
 	return &Collector{
 		linesRead:            linesRead,
 		linesPublished:       linesPublished,
@@ -456,12 +471,15 @@ func (c *Collector) RecordPublishTruncation(ctx context.Context) {
 	c.publishTruncations.Add(ctx, 1)
 }
 
-func (c *Collector) RecordPublishBatchFlush(ctx context.Context, reason string, count int, bytes int) {
+func (c *Collector) RecordPublishBatchFlush(ctx context.Context, reason, result string, count int, bytes int) {
 	if c == nil {
 		return
 	}
 	if c.publishBatchFlushes != nil {
-		c.publishBatchFlushes.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", reason)))
+		c.publishBatchFlushes.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("reason", reason),
+			attribute.String("result", result),
+		))
 	}
 	if c.publishBatchSize != nil {
 		c.publishBatchSize.Record(ctx, int64(count))
