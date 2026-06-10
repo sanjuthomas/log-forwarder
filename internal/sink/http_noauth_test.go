@@ -72,3 +72,54 @@ func TestHTTPNoauthSinkPublishErrorStatus(t *testing.T) {
 		t.Fatal("expected error for non-2xx response")
 	}
 }
+
+func TestHTTPNoauthSinkCheck(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+
+	s, err := New(config.SinkConfig{
+		Type:       "http-noauth",
+		HTTPNoauth: &config.HTTPNoauthSinkConfig{URL: server.URL},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checker, ok := s.(Checker)
+	if !ok {
+		t.Fatal("expected sink to implement Checker")
+	}
+	if err := checker.Check(context.Background()); err != nil {
+		t.Fatalf("Check() error = %v", err)
+	}
+}
+
+func TestHTTPNoauthSinkCheckErrorStatus(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("boom"))
+	}))
+	t.Cleanup(server.Close)
+
+	s, err := New(config.SinkConfig{
+		Type:       "http-noauth",
+		HTTPNoauth: &config.HTTPNoauthSinkConfig{URL: server.URL},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	checker, ok := s.(Checker)
+	if !ok {
+		t.Fatal("expected sink to implement Checker")
+	}
+	if err := checker.Check(context.Background()); err == nil {
+		t.Fatal("expected error for non-2xx response")
+	}
+}
