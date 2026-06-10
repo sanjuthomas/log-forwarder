@@ -27,7 +27,15 @@ func (f *fileSink) Check(_ context.Context) error {
 	return f.open()
 }
 
-func (f *fileSink) Publish(_ context.Context, payload []byte) error {
+func (f *fileSink) Publish(ctx context.Context, payload []byte) error {
+	return f.PublishBatch(ctx, [][]byte{payload})
+}
+
+func (f *fileSink) PublishBatch(_ context.Context, payloads [][]byte) error {
+	if len(payloads) == 0 {
+		return nil
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -37,11 +45,13 @@ func (f *fileSink) Publish(_ context.Context, payload []byte) error {
 		}
 	}
 
-	if _, err := f.file.Write(payload); err != nil {
-		return fmt.Errorf("file publish: %w", err)
-	}
-	if _, err := f.file.Write([]byte("\n")); err != nil {
-		return fmt.Errorf("file publish: %w", err)
+	for _, payload := range payloads {
+		if _, err := f.file.Write(payload); err != nil {
+			return fmt.Errorf("file publish: %w", err)
+		}
+		if _, err := f.file.Write([]byte("\n")); err != nil {
+			return fmt.Errorf("file publish: %w", err)
+		}
 	}
 	return nil
 }

@@ -13,6 +13,11 @@ type Sink interface {
 	Close() error
 }
 
+// BatchSink publishes multiple encoded records in one sink operation.
+type BatchSink interface {
+	PublishBatch(ctx context.Context, payloads [][]byte) error
+}
+
 // Checker optionally verifies destination connectivity at startup.
 type Checker interface {
 	Check(ctx context.Context) error

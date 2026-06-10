@@ -18,7 +18,11 @@ type flakySink struct {
 	calls    int32
 }
 
-func (f *flakySink) Publish(_ context.Context, _ []byte) error {
+func (f *flakySink) Publish(ctx context.Context, payload []byte) error {
+	return f.PublishBatch(ctx, [][]byte{payload})
+}
+
+func (f *flakySink) PublishBatch(_ context.Context, _ [][]byte) error {
 	call := atomic.AddInt32(&f.calls, 1)
 	if int(call) <= int(f.failures) {
 		return errors.New("publish failed")

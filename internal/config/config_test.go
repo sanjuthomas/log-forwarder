@@ -146,6 +146,17 @@ func TestValidatePipelineRejectsNegativeMaxPublishBytes(t *testing.T) {
 	}
 }
 
+func TestValidatePublishBatchRejectsInvalidFlushInterval(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.Pipeline.PublishBatch.FlushInterval = "not-a-duration"
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error for invalid publish_batch.flush_interval")
+	}
+}
+
 func TestValidateMultilineParserRejectsInvalidStartPattern(t *testing.T) {
 	t.Parallel()
 
