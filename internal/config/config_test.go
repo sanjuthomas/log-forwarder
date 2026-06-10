@@ -135,6 +135,17 @@ func TestValidateHTTPNoauthSinkRequiresURL(t *testing.T) {
 	}
 }
 
+func TestValidatePipelineRejectsNegativeMaxPublishBytes(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.Pipeline.MaxPublishBytes = -1
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error for negative max_publish_bytes")
+	}
+}
+
 func TestValidateMultilineParserRejectsInvalidStartPattern(t *testing.T) {
 	t.Parallel()
 

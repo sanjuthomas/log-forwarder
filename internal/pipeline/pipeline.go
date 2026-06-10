@@ -2,7 +2,6 @@ package pipeline
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -129,9 +128,22 @@ func (p *Pipeline) process(ctx context.Context, event parser.Event) error {
 		} else {
 			record = enrich.Apply(p.enrichers, record)
 
-			payload, err := json.Marshal(record)
+			payload, truncated, err := marshalPublishPayload(
+				record,
+				p.cfg.Pipeline.MaxPublishBytes,
+				p.cfg.Pipeline.TruncateFieldOrDefault(),
+				p.cfg.Pipeline.TruncateSuffixOrDefault(),
+			)
 			if err != nil {
-				return fmt.Errorf("marshal record: %w", err)
+				return err
+			}
+			if truncated {
+				p.metrics.RecordPublishTruncation(ctx)
+				p.logger.Debug("truncated record for publish",
+					"path", event.Path,
+					"max_publish_bytes", p.cfg.Pipeline.MaxPublishBytes,
+					"payload_bytes", len(payload),
+				)
 			}
 
 			if err := p.publishWithRetry(ctx, payload); err != nil {

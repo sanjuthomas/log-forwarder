@@ -11,11 +11,34 @@ type PublishRetryConfig struct {
 	MaxAttempts    int    `yaml:"max_attempts"`
 }
 
+const (
+	DefaultMaxPublishBytes = 1048576 // 1 MiB, aligned with Kafka message.max.bytes default
+	DefaultTruncateField   = "message"
+	DefaultTruncateSuffix  = "… [truncated]"
+)
+
 type PipelineConfig struct {
-	BufferSize     int                `yaml:"buffer_size"`
-	OnFull         string             `yaml:"on_full"`
-	PublishTimeout string             `yaml:"publish_timeout"`
-	PublishRetry   PublishRetryConfig `yaml:"publish_retry"`
+	BufferSize       int                `yaml:"buffer_size"`
+	OnFull           string             `yaml:"on_full"`
+	PublishTimeout   string             `yaml:"publish_timeout"`
+	PublishRetry     PublishRetryConfig `yaml:"publish_retry"`
+	MaxPublishBytes  int                `yaml:"max_publish_bytes"`
+	TruncateField    string             `yaml:"truncate_field"`
+	TruncateSuffix   string             `yaml:"truncate_suffix"`
+}
+
+func (c PipelineConfig) TruncateFieldOrDefault() string {
+	if c.TruncateField == "" {
+		return DefaultTruncateField
+	}
+	return c.TruncateField
+}
+
+func (c PipelineConfig) TruncateSuffixOrDefault() string {
+	if c.TruncateSuffix == "" {
+		return DefaultTruncateSuffix
+	}
+	return c.TruncateSuffix
 }
 
 func (c PublishRetryConfig) InitialBackoffDuration() time.Duration {
@@ -86,6 +109,10 @@ func (c *Config) validatePipeline() error {
 	maximum := retry.MaxBackoffDuration()
 	if maximum < initial {
 		return fmt.Errorf("pipeline.publish_retry.max_backoff must be >= initial_backoff")
+	}
+
+	if c.Pipeline.MaxPublishBytes < 0 {
+		return fmt.Errorf("pipeline.max_publish_bytes must be >= 0")
 	}
 
 	return nil
