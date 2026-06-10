@@ -59,6 +59,25 @@ func TestValidateFilterRejectsUnknownType(t *testing.T) {
 	}
 }
 
+func TestValidateFilterRejectsInvalidOnMissing(t *testing.T) {
+	t.Parallel()
+
+	cfg := validConfig()
+	cfg.Filter = FilterConfig{
+		OnMissing: "ignore",
+		Match:     "all",
+		Rules: []FilterRuleConfig{
+			{Type: "field", Field: "level", Op: "in", Values: []string{"ERROR"}},
+		},
+	}
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error for invalid on_missing")
+	} else if !strings.Contains(err.Error(), "filter.on_missing") {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
 func TestValidateFilterAllowsErrorLevelRule(t *testing.T) {
 	t.Parallel()
 

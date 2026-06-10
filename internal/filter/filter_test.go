@@ -15,7 +15,7 @@ func TestFieldPredicateCaseInsensitiveIn(t *testing.T) {
 		Op:         "in",
 		Values:     []string{"ERROR"},
 		IgnoreCase: true,
-	})
+	}, "drop")
 	if err != nil {
 		t.Fatalf("newFieldPredicate() error = %v", err)
 	}
@@ -25,6 +25,77 @@ func TestFieldPredicateCaseInsensitiveIn(t *testing.T) {
 	}
 	if predicate.Match(transform.Record{"level": "INFO"}) {
 		t.Fatal("expected INFO to be filtered out")
+	}
+}
+
+func TestFieldPredicateMissingFieldDropsByDefault(t *testing.T) {
+	t.Parallel()
+
+	predicate, err := newFieldPredicate(config.FilterRuleConfig{
+		Field:  "level",
+		Op:     "in",
+		Values: []string{"ERROR"},
+	}, "drop")
+	if err != nil {
+		t.Fatalf("newFieldPredicate() error = %v", err)
+	}
+
+	if predicate.Match(transform.Record{"message": "no level here"}) {
+		t.Fatal("expected missing level field to fail filter")
+	}
+}
+
+func TestFieldPredicateMissingFieldPassWhenConfigured(t *testing.T) {
+	t.Parallel()
+
+	predicate, err := newFieldPredicate(config.FilterRuleConfig{
+		Field:     "level",
+		Op:        "in",
+		Values:    []string{"ERROR"},
+		OnMissing: "pass",
+	}, "drop")
+	if err != nil {
+		t.Fatalf("newFieldPredicate() error = %v", err)
+	}
+
+	if !predicate.Match(transform.Record{"message": "no level here"}) {
+		t.Fatal("expected missing level field to pass rule when on_missing is pass")
+	}
+}
+
+func TestFieldPredicateMissingFieldInheritsFilterDefault(t *testing.T) {
+	t.Parallel()
+
+	predicate, err := New(config.FilterConfig{
+		OnMissing: "pass",
+		Match:     "all",
+		Rules: []config.FilterRuleConfig{
+			{Type: "field", Field: "level", Op: "in", Values: []string{"ERROR"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	if !predicate.Match(transform.Record{"message": "no level here"}) {
+		t.Fatal("expected missing field to inherit filter.on_missing pass")
+	}
+}
+
+func TestFieldPredicateMissingFieldNeqDropsByDefault(t *testing.T) {
+	t.Parallel()
+
+	predicate, err := newFieldPredicate(config.FilterRuleConfig{
+		Field: "level",
+		Op:    "neq",
+		Value: "ERROR",
+	}, "drop")
+	if err != nil {
+		t.Fatalf("newFieldPredicate() error = %v", err)
+	}
+
+	if predicate.Match(transform.Record{"message": "no level here"}) {
+		t.Fatal("expected missing field with neq to fail filter by default")
 	}
 }
 

@@ -83,6 +83,69 @@ func TestPipelineFilterPassesOnlyMatchingLevels(t *testing.T) {
 	}
 }
 
+func TestPipelineFilterDropsMissingLevelField(t *testing.T) {
+	collector, shutdown, err := metrics.New(config.MetricsConfig{
+		Enabled: true,
+		Host:    "127.0.0.1",
+		Port:    0,
+	}, metrics.Snapshot{}, nil)
+	if err != nil {
+		t.Fatalf("metrics.New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := shutdown(context.Background()); err != nil {
+			t.Fatalf("shutdown() error = %v", err)
+		}
+	})
+
+	cfg := config.Default()
+	cfg.Transform = config.TransformConfig{
+		Type:    "delimiter",
+		Columns: []string{"timestamp", "message"},
+		OnError: "wrap",
+	}
+	cfg.Filter = config.FilterConfig{
+		Match: "all",
+		Rules: []config.FilterRuleConfig{
+			{
+				Type:       "field",
+				Field:      "level",
+				Op:         "in",
+				Values:     []string{"ERROR"},
+				IgnoreCase: true,
+			},
+		},
+	}
+
+	sink := &fakeSink{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pipe, err := New(cfg, sink, logger, Options{Metrics: collector})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	lines := make(chan watcher.LineEvent, 1)
+	lines <- watcher.LineEvent{
+		Path:   "/tmp/test.log",
+		Line:   []byte("2024-01-01T00:00:00Z\tno level column"),
+		Offset: 10,
+		Inode:  1,
+	}
+	close(lines)
+
+	if err := pipe.Run(context.Background(), lines); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if sink.publishCalls != 0 {
+		t.Fatalf("publishCalls = %d, want 0", sink.publishCalls)
+	}
+
+	body := prometheusBody(t, collector)
+	if !strings.Contains(body, "log_forwarder_lines_filtered") {
+		t.Fatalf("metrics missing filtered counter: %s", body)
+	}
+}
+
 func TestPipelineFilterAdvancesWatermarkWhenFiltered(t *testing.T) {
 	cfg := config.Default()
 	cfg.Transform = config.TransformConfig{

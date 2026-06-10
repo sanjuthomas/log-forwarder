@@ -27,18 +27,29 @@ func New(cfg config.FilterConfig) (Predicate, error) {
 	if !cfg.Enabled() {
 		return passAll{}, nil
 	}
-	return newCompound(cfg.Match, cfg.Rules)
-}
-
-func newRule(cfg config.FilterRuleConfig) (Predicate, error) {
-	factory, ok := registry[cfg.Type]
-	if !ok {
-		return nil, fmt.Errorf("unknown filter type %q (registered: %v)", cfg.Type, registeredNames())
+	onMissingDefault := cfg.OnMissing
+	if onMissingDefault == "" {
+		onMissingDefault = "drop"
 	}
-	return factory(cfg)
+	return newCompound(cfg.Match, onMissingDefault, cfg.Rules)
 }
 
-func newCompound(match string, rules []config.FilterRuleConfig) (Predicate, error) {
+func newRule(cfg config.FilterRuleConfig, onMissingDefault string) (Predicate, error) {
+	switch cfg.Type {
+	case "field":
+		return newFieldPredicate(cfg, onMissingDefault)
+	case "compound":
+		return newCompound(cfg.Match, onMissingDefault, cfg.Rules)
+	default:
+		factory, ok := registry[cfg.Type]
+		if !ok {
+			return nil, fmt.Errorf("unknown filter type %q (registered: %v)", cfg.Type, registeredNames())
+		}
+		return factory(cfg)
+	}
+}
+
+func newCompound(match, onMissingDefault string, rules []config.FilterRuleConfig) (Predicate, error) {
 	if len(rules) == 0 {
 		return passAll{}, nil
 	}
@@ -52,7 +63,7 @@ func newCompound(match string, rules []config.FilterRuleConfig) (Predicate, erro
 
 	predicates := make([]Predicate, 0, len(rules))
 	for i, rule := range rules {
-		predicate, err := newRule(rule)
+		predicate, err := newRule(rule, onMissingDefault)
 		if err != nil {
 			return nil, fmt.Errorf("filter rule[%d]: %w", i, err)
 		}
@@ -107,11 +118,4 @@ func (c compoundPredicate) Match(record transform.Record) bool {
 		}
 	}
 	return false
-}
-
-func init() {
-	Register("field", newFieldPredicate)
-	Register("compound", func(cfg config.FilterRuleConfig) (Predicate, error) {
-		return newCompound(cfg.Match, cfg.Rules)
-	})
 }

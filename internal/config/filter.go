@@ -1,8 +1,9 @@
 package config
 
 type FilterConfig struct {
-	Match string             `yaml:"match"`
-	Rules []FilterRuleConfig `yaml:"rules"`
+	Match     string             `yaml:"match"`
+	OnMissing string             `yaml:"on_missing,omitempty"`
+	Rules     []FilterRuleConfig `yaml:"rules"`
 }
 
 type FilterRuleConfig struct {
@@ -12,6 +13,7 @@ type FilterRuleConfig struct {
 	Value      string             `yaml:"value,omitempty"`
 	Values     []string           `yaml:"values,omitempty"`
 	IgnoreCase bool               `yaml:"ignore_case,omitempty"`
+	OnMissing  string             `yaml:"on_missing,omitempty"`
 	Match      string             `yaml:"match,omitempty"`
 	Rules      []FilterRuleConfig `yaml:"rules,omitempty"`
 }

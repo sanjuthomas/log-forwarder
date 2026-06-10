@@ -14,22 +14,35 @@ type fieldPredicate struct {
 	value      string
 	values     []string
 	ignoreCase bool
+	onMissing  string
 }
 
-func newFieldPredicate(cfg config.FilterRuleConfig) (Predicate, error) {
+func newFieldPredicate(cfg config.FilterRuleConfig, onMissingDefault string) (Predicate, error) {
+	onMissing := cfg.OnMissing
+	if onMissing == "" {
+		onMissing = onMissingDefault
+	}
+	if onMissing == "" {
+		onMissing = "drop"
+	}
+	if onMissing != "drop" && onMissing != "pass" {
+		return nil, fmt.Errorf("field filter on_missing must be drop or pass")
+	}
+
 	return fieldPredicate{
 		field:      cfg.Field,
 		op:         cfg.Op,
 		value:      cfg.Value,
 		values:     append([]string(nil), cfg.Values...),
 		ignoreCase: cfg.IgnoreCase,
+		onMissing:  onMissing,
 	}, nil
 }
 
 func (f fieldPredicate) Match(record transform.Record) bool {
 	actual, ok := record[f.field]
 	if !ok {
-		return f.op == "neq" || f.op == "not_in"
+		return f.onMissing == "pass"
 	}
 
 	actualStr := stringify(actual)
