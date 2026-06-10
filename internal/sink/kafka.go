@@ -9,8 +9,13 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
+type kafkaMessageWriter interface {
+	WriteMessages(ctx context.Context, msgs ...kafka.Message) error
+	Close() error
+}
+
 type kafkaSink struct {
-	writer *kafka.Writer
+	writer kafkaMessageWriter
 	cfg    config.KafkaConfig
 	dialer *kafka.Dialer
 }
@@ -29,16 +34,20 @@ func newKafkaSink(cfg config.SinkConfig) (Sink, error) {
 	return &kafkaSink{
 		cfg:    kafkaCfg,
 		dialer: dialer,
-		writer: kafka.NewWriter(kafka.WriterConfig{
-			Brokers:      kafkaCfg.Brokers,
-			Topic:        kafkaCfg.Topic,
-			Balancer:     &kafka.LeastBytes{},
-			BatchTimeout: 10 * time.Millisecond,
-			RequiredAcks: int(kafka.RequireOne),
-			Async:        false,
-			Dialer:       dialer,
-		}),
+		writer: newKafkaWriter(kafkaCfg, dialer),
 	}, nil
+}
+
+func newKafkaWriter(kafkaCfg config.KafkaConfig, dialer *kafka.Dialer) kafkaMessageWriter {
+	return kafka.NewWriter(kafka.WriterConfig{
+		Brokers:      kafkaCfg.Brokers,
+		Topic:        kafkaCfg.Topic,
+		Balancer:     &kafka.LeastBytes{},
+		BatchTimeout: 10 * time.Millisecond,
+		RequiredAcks: int(kafka.RequireOne),
+		Async:        false,
+		Dialer:       dialer,
+	})
 }
 
 func (k *kafkaSink) Check(ctx context.Context) error {
