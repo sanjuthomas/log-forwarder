@@ -203,3 +203,221 @@ func TestPipelineFilterAdvancesWatermarkWhenFiltered(t *testing.T) {
 		t.Fatalf("watermark = %+v, want offset 99 inode 7", entry)
 	}
 }
+
+func TestPipelineNoFilterPublishesAll(t *testing.T) {
+	cfg := config.Default()
+	cfg.Transform = config.TransformConfig{
+		Type:    "delimiter",
+		Columns: []string{"timestamp", "level", "message"},
+		OnError: "wrap",
+	}
+
+	sink := &fakeSink{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pipe, err := New(cfg, sink, logger, Options{})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	lines := make(chan watcher.LineEvent, 2)
+	lines <- watcher.LineEvent{
+		Path: "/tmp/test.log",
+		Line: []byte("2024-01-01T00:00:00Z\tINFO\tfirst"),
+	}
+	lines <- watcher.LineEvent{
+		Path: "/tmp/test.log",
+		Line: []byte("2024-01-01T00:00:01Z\tERROR\tsecond"),
+	}
+	close(lines)
+
+	if err := pipe.Run(context.Background(), lines); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if sink.publishCalls != 2 {
+		t.Fatalf("publishCalls = %d, want 2", sink.publishCalls)
+	}
+}
+
+func TestPipelineFilterMatchAnyPassesMultipleLevels(t *testing.T) {
+	cfg := config.Default()
+	cfg.Transform = config.TransformConfig{
+		Type:    "delimiter",
+		Columns: []string{"timestamp", "level", "message"},
+		OnError: "wrap",
+	}
+	cfg.Filter = config.FilterConfig{
+		Match: "any",
+		Rules: []config.FilterRuleConfig{
+			{Type: "field", Field: "level", Op: "eq", Value: "WARN", IgnoreCase: true},
+			{Type: "field", Field: "level", Op: "eq", Value: "ERROR", IgnoreCase: true},
+		},
+	}
+
+	sink := &fakeSink{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pipe, err := New(cfg, sink, logger, Options{})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	lines := make(chan watcher.LineEvent, 3)
+	lines <- watcher.LineEvent{Path: "/tmp/test.log", Line: []byte("2024-01-01T00:00:00Z\tINFO\tdrop")}
+	lines <- watcher.LineEvent{Path: "/tmp/test.log", Line: []byte("2024-01-01T00:00:01Z\twarn\tkeep")}
+	lines <- watcher.LineEvent{Path: "/tmp/test.log", Line: []byte("2024-01-01T00:00:02Z\tERROR\tkeep")}
+	close(lines)
+
+	if err := pipe.Run(context.Background(), lines); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if sink.publishCalls != 2 {
+		t.Fatalf("publishCalls = %d, want 2", sink.publishCalls)
+	}
+}
+
+func TestPipelineFilterNotInExcludesLevels(t *testing.T) {
+	cfg := config.Default()
+	cfg.Transform = config.TransformConfig{
+		Type:    "delimiter",
+		Columns: []string{"timestamp", "level", "message"},
+		OnError: "wrap",
+	}
+	cfg.Filter = config.FilterConfig{
+		Match: "all",
+		Rules: []config.FilterRuleConfig{
+			{
+				Type:   "field",
+				Field:  "level",
+				Op:     "not_in",
+				Values: []string{"DEBUG", "TRACE"},
+			},
+		},
+	}
+
+	sink := &fakeSink{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pipe, err := New(cfg, sink, logger, Options{})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	lines := make(chan watcher.LineEvent, 2)
+	lines <- watcher.LineEvent{Path: "/tmp/test.log", Line: []byte("2024-01-01T00:00:00Z\tDEBUG\tdrop")}
+	lines <- watcher.LineEvent{Path: "/tmp/test.log", Line: []byte("2024-01-01T00:00:01Z\tINFO\tkeep")}
+	close(lines)
+
+	if err := pipe.Run(context.Background(), lines); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if sink.publishCalls != 1 {
+		t.Fatalf("publishCalls = %d, want 1", sink.publishCalls)
+	}
+}
+
+func TestPipelineFilterOnMissingPassPublishesWithoutLevel(t *testing.T) {
+	cfg := config.Default()
+	cfg.Transform = config.TransformConfig{
+		Type:    "delimiter",
+		Columns: []string{"timestamp", "message"},
+		OnError: "wrap",
+	}
+	cfg.Filter = config.FilterConfig{
+		Match: "all",
+		Rules: []config.FilterRuleConfig{
+			{
+				Type:      "field",
+				Field:     "level",
+				Op:        "in",
+				Values:    []string{"ERROR"},
+				OnMissing: "pass",
+			},
+		},
+	}
+
+	sink := &fakeSink{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pipe, err := New(cfg, sink, logger, Options{})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	lines := make(chan watcher.LineEvent, 1)
+	lines <- watcher.LineEvent{
+		Path: "/tmp/test.log",
+		Line: []byte("2024-01-01T00:00:00Z\tno level column"),
+	}
+	close(lines)
+
+	if err := pipe.Run(context.Background(), lines); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if sink.publishCalls != 1 {
+		t.Fatalf("publishCalls = %d, want 1", sink.publishCalls)
+	}
+}
+
+func TestPipelineFilterIncrementsFilteredMetricCount(t *testing.T) {
+	collector, shutdown, err := metrics.New(config.MetricsConfig{
+		Enabled: true,
+		Host:    "127.0.0.1",
+		Port:    0,
+	}, metrics.Snapshot{}, nil)
+	if err != nil {
+		t.Fatalf("metrics.New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := shutdown(context.Background()); err != nil {
+			t.Fatalf("shutdown() error = %v", err)
+		}
+	})
+
+	cfg := config.Default()
+	cfg.Transform = config.TransformConfig{
+		Type:    "delimiter",
+		Columns: []string{"timestamp", "level", "message"},
+		OnError: "wrap",
+	}
+	cfg.Filter = config.FilterConfig{
+		Match: "all",
+		Rules: []config.FilterRuleConfig{
+			{
+				Type:       "field",
+				Field:      "level",
+				Op:         "in",
+				Values:     []string{"ERROR"},
+				IgnoreCase: true,
+			},
+		},
+	}
+
+	sink := &fakeSink{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pipe, err := New(cfg, sink, logger, Options{Metrics: collector})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	lines := make(chan watcher.LineEvent, 3)
+	lines <- watcher.LineEvent{Path: "/tmp/test.log", Line: []byte("2024-01-01T00:00:00Z\tINFO\tdrop-1")}
+	lines <- watcher.LineEvent{Path: "/tmp/test.log", Line: []byte("2024-01-01T00:00:01Z\tWARN\tdrop-2")}
+	lines <- watcher.LineEvent{Path: "/tmp/test.log", Line: []byte("2024-01-01T00:00:02Z\tERROR\tkeep")}
+	close(lines)
+
+	if err := pipe.Run(context.Background(), lines); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if sink.publishCalls != 1 {
+		t.Fatalf("publishCalls = %d, want 1", sink.publishCalls)
+	}
+
+	body := prometheusBody(t, collector)
+	if !strings.Contains(body, "log_forwarder_lines_filtered_total 2") &&
+		!strings.Contains(body, "log_forwarder_lines_filtered_total{") {
+		// OTel/Prometheus may emit labels; accept either bare or labeled series with value 2.
+		if !strings.Contains(body, "log_forwarder_lines_filtered") {
+			t.Fatalf("metrics missing filtered counter: %s", body)
+		}
+		if !strings.Contains(body, " 2") && !strings.Contains(body, " 2.0") {
+			t.Fatalf("expected filtered counter value 2, body = %s", body)
+		}
+	}
+}

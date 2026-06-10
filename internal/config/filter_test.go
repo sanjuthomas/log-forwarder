@@ -118,3 +118,95 @@ func TestValidateFilterAllowsRegisteredCustomType(t *testing.T) {
 		t.Fatalf("Validate() error = %v", err)
 	}
 }
+
+func TestValidateEmptyFilterConfig(t *testing.T) {
+	t.Parallel()
+
+	cfg := validConfig()
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestValidateFilterCompoundRequiresRules(t *testing.T) {
+	t.Parallel()
+
+	cfg := validConfig()
+	cfg.Filter = FilterConfig{
+		Match: "all",
+		Rules: []FilterRuleConfig{
+			{Type: "compound", Match: "any"},
+		},
+	}
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error for empty compound rules")
+	} else if !strings.Contains(err.Error(), "filter.rules[0].rules") {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestValidateFilterEqRequiresValue(t *testing.T) {
+	t.Parallel()
+
+	cfg := validConfig()
+	cfg.Filter = FilterConfig{
+		Match: "all",
+		Rules: []FilterRuleConfig{
+			{Type: "field", Field: "level", Op: "eq"},
+		},
+	}
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error for missing eq value")
+	} else if !strings.Contains(err.Error(), "filter.rules[0].value") {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestValidateFilterRejectsInvalidRuleOnMissing(t *testing.T) {
+	t.Parallel()
+
+	cfg := validConfig()
+	cfg.Filter = FilterConfig{
+		Match: "all",
+		Rules: []FilterRuleConfig{
+			{
+				Type:      "field",
+				Field:     "level",
+				Op:        "in",
+				Values:    []string{"ERROR"},
+				OnMissing: "ignore",
+			},
+		},
+	}
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error for invalid rule on_missing")
+	} else if !strings.Contains(err.Error(), "filter.rules[0].on_missing") {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestValidateFilterNestedCompound(t *testing.T) {
+	t.Parallel()
+
+	cfg := validConfig()
+	cfg.Filter = FilterConfig{
+		OnMissing: "drop",
+		Match:     "all",
+		Rules: []FilterRuleConfig{
+			{
+				Type:  "compound",
+				Match: "any",
+				Rules: []FilterRuleConfig{
+					{Type: "field", Field: "level", Op: "in", Values: []string{"WARN", "ERROR"}, IgnoreCase: true},
+				},
+			},
+		},
+	}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
