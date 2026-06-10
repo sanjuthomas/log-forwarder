@@ -18,7 +18,7 @@ func TestPipelineNormalizesTimestampBeforePublish(t *testing.T) {
 		Enabled: true,
 		Host:    "127.0.0.1",
 		Port:    0,
-	}, metrics.Snapshot{}, nil)
+	}, metrics.Snapshot{}, nil, nil)
 	if err != nil {
 		t.Fatalf("metrics.New() error = %v", err)
 	}

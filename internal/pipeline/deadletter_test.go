@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,12 +52,8 @@ func TestDeadLetterAdvancesWatermarkOnFlushFailure(t *testing.T) {
 		t.Fatalf("watermark offset = %d, want 42", entry.Offset)
 	}
 
-	files, err := os.ReadDir(dlqDir)
-	if err != nil {
-		t.Fatalf("ReadDir() error = %v", err)
-	}
-	if len(files) != 1 {
-		t.Fatalf("dead letter file count = %d, want 1", len(files))
+	if countJSONLFiles(t, dlqDir) != 1 {
+		t.Fatalf("dead letter jsonl file count != 1")
 	}
 	if pipe.ConsecutiveDLQSnapshot() != 1 {
 		t.Fatalf("consecutive DLQ = %d, want 1", pipe.ConsecutiveDLQSnapshot())
@@ -138,14 +135,27 @@ func waitForDLQFiles(t *testing.T, dir string, want int) {
 
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		files, err := os.ReadDir(dir)
-		if err == nil && len(files) >= want {
+		if countJSONLFiles(t, dir) >= want {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	files, _ := os.ReadDir(dir)
-	t.Fatalf("dead letter file count = %d, want %d", len(files), want)
+	t.Fatalf("dead letter jsonl file count = %d, want %d", countJSONLFiles(t, dir), want)
+}
+
+func countJSONLFiles(t *testing.T, dir string) int {
+	t.Helper()
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir() error = %v", err)
+	}
+	n := 0
+	for _, f := range files {
+		if strings.HasSuffix(f.Name(), ".jsonl") && !strings.Contains(f.Name(), ".tmp") {
+			n++
+		}
+	}
+	return n
 }
 
 func deadLetterPipelineConfig(dlqDir string, maxConsecutive int) *config.Config {

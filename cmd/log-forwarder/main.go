@@ -115,7 +115,7 @@ func main() {
 		}
 		return forwarderPipe.Hibernating()
 	})
-	collector, shutdownMetrics, err := metrics.New(cfg.Metrics, snapshot, readiness)
+	collector, shutdownMetrics, err := metrics.New(cfg.Metrics, snapshot, readiness, buildDeadLetters(cfg))
 	if err != nil {
 		logger.Error("create metrics collector", "error", err)
 		os.Exit(1)
@@ -197,6 +197,14 @@ func checkSinkAtStartup(s sink.Sink, cfg *config.Config) error {
 	pingCtx, cancel := context.WithTimeout(context.Background(), cfg.SinkConnectTimeout())
 	defer cancel()
 	return checker.Check(pingCtx)
+}
+
+func buildDeadLetters(cfg *config.Config) *metrics.DeadLetters {
+	path := cfg.Pipeline.PublishBatch.DeadLetter.Path
+	if path == "" {
+		return nil
+	}
+	return &metrics.DeadLetters{Dir: path}
 }
 
 func buildReadiness(cfg *config.Config, recordSink sink.Sink, snapshot metrics.Snapshot, isHibernating func() bool) *metrics.Readiness {

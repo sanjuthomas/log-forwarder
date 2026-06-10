@@ -140,7 +140,7 @@ func TestNewRegistersReadyHandler(t *testing.T) {
 	collector, shutdown, err := New(configFromTest(), Snapshot{
 		BufferCapacity: 10,
 		BufferDepth:    func() int64 { return 0 },
-	}, readiness)
+	}, readiness, nil)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

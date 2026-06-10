@@ -62,7 +62,7 @@ type Snapshot struct {
 
 // New creates a metrics collector and HTTP server when metrics are enabled.
 // When disabled, it returns a no-op collector and nil shutdown function.
-func New(cfg config.MetricsConfig, snapshot Snapshot, readiness *Readiness) (*Collector, func(context.Context) error, error) {
+func New(cfg config.MetricsConfig, snapshot Snapshot, readiness *Readiness, deadLetters *DeadLetters) (*Collector, func(context.Context) error, error) {
 	if !cfg.Enabled {
 		return noopCollector()
 	}
@@ -128,6 +128,9 @@ func New(cfg config.MetricsConfig, snapshot Snapshot, readiness *Readiness) (*Co
 	mux.HandleFunc("/health", healthHandler)
 	if readiness != nil {
 		mux.HandleFunc(cfg.Readiness.ReadyPath(), readiness.handler())
+	}
+	if deadLetters != nil && deadLetters.enabled() {
+		mux.HandleFunc(cfg.DeadLettersPath(), deadLetters.handler())
 	}
 	mux.Handle(cfg.MetricsPath(), promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 

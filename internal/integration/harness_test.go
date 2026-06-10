@@ -138,7 +138,7 @@ func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forw
 		}
 		return pipe.Hibernating()
 	})
-	collector, shutdownMetrics, err := metrics.New(cfg.Metrics, snapshot, readiness)
+	collector, shutdownMetrics, err := metrics.New(cfg.Metrics, snapshot, readiness, deadLettersAPI(cfg))
 	if err != nil {
 		t.Fatalf("metrics.New() error = %v", err)
 	}
@@ -449,6 +449,14 @@ func setupDirs(t *testing.T) (logDir, sinkPath, statePath string) {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
 	return logDir, sinkPath, statePath
+}
+
+func deadLettersAPI(cfg *config.Config) *metrics.DeadLetters {
+	path := cfg.Pipeline.PublishBatch.DeadLetter.Path
+	if path == "" {
+		return nil
+	}
+	return &metrics.DeadLetters{Dir: path}
 }
 
 func buildHarnessReadiness(cfg *config.Config, recordSink sink.Sink, snapshot metrics.Snapshot, isHibernating func() bool) *metrics.Readiness {

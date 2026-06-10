@@ -24,7 +24,11 @@ func TestWriteBatchCreatesJSONLFile(t *testing.T) {
 		[]byte(`{"message":"two"}`),
 	}
 
-	filename, bytes, err := WriteBatch(dir, payloads)
+	filename, bytes, err := WriteBatch(dir, payloads, WriteInfo{
+		FailureReason: "publish failed",
+		SinkType:      "file",
+		BatchAttempts: 2,
+	})
 	if err != nil {
 		t.Fatalf("WriteBatch() error = %v", err)
 	}

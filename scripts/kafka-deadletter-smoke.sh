@@ -67,6 +67,24 @@ if ! grep -q 'kafka deadletter smoke' <<<"${dlq_content}"; then
 	exit 1
 fi
 
+echo "Verifying GET /deadletters metadata..."
+deadletters="$(curl -sf "${FORWARDER_URL}/deadletters")"
+if ! grep -q '"sink_type":"kafka"' <<<"${deadletters}"; then
+	echo "/deadletters missing sink_type kafka:" >&2
+	echo "${deadletters}" >&2
+	exit 1
+fi
+if ! grep -q '"event_count":' <<<"${deadletters}"; then
+	echo "/deadletters missing event_count:" >&2
+	echo "${deadletters}" >&2
+	exit 1
+fi
+if grep -q 'kafka deadletter smoke' <<<"${deadletters}"; then
+	echo "/deadletters must not include raw log record bodies:" >&2
+	echo "${deadletters}" >&2
+	exit 1
+fi
+
 metrics="$(curl -sf "${FORWARDER_URL}/metrics")"
 if ! grep -qE 'log_forwarder_publish_batch_flushes_total\{[^}]*result="dead_letter"' <<<"${metrics}"; then
 	echo "metrics missing publish batch flush with result=dead_letter" >&2

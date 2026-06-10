@@ -107,7 +107,12 @@ KAFKA-2 scripts/kafka-deadletter-smoke.sh (CI with KAFKA-1)
                                              docker-compose.kafka-dlq.yaml: real Kafka sink,
                                              broker stopped after startup, failed publish
                                              writes JSONL to /dlq, dead_letter metrics,
+                                             GET /deadletters metadata (no record bodies),
                                              line not on topic after broker restart.
+
+DLQ-1  TestE2E_DeadLettersEndpointMetadata
+                                             In-process forwarder with metrics: GET /deadletters
+                                             returns batch metadata after dead letter write.
 
 SMOKE-1 scripts/docker-smoke.sh
                                              docker-compose.smoke.yaml file-sink stack with
