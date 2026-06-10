@@ -24,7 +24,7 @@ A. Correctness (do first)
 
 Use a real config close to prod (e.g. configs/example-spring-boot-kafka.yaml).
 
-Single-line and multiline:
+Single-line and multiline (see README "Multiline parser and watermarks" for commit/flush semantics):
 
   mkdir -p logs/spring-boot
   ./bin/log-forwarder -config configs/example-spring-boot-kafka.yaml
