@@ -276,12 +276,27 @@ OPERATOR NOTES (documented, not automated)
   - Alert on rate(log_forwarder_pipeline_buffer_dropped[5m]) > 0 when drop mode is enabled.
 
 
+PLANNED — Config combination tests
+----------------------------------
+
+See docs/config-test-plan.txt for the full matrix, priorities (P0–P3), and GitHub
+issue mapping. Highlights:
+
+  E2E-27  on_full block backpressure + readiness buffer_threshold
+  E2E-28  on_full drop + buffer_dropped + watermark skip
+  E2E-29  publish_timeout
+  E2E-30  hibernate wake_enabled recovery
+  E2E-31  readiness reasons on live forwarder
+  CFG-2   table-driven runtime test for all example YAML configs
+
+
 COVERAGE GAPS (acceptable for v1)
 ---------------------------------
 
-  - No test for pipeline buffer full / on_full: block backpressure
-  - No test for on_full: drop offset/watermark interaction (documented in README)
+  - No test for pipeline buffer full / on_full: block backpressure  → E2E-27
+  - No test for on_full: drop offset/watermark interaction          → E2E-28
   - No test for copytruncate rotation (unsupported; documented in README)
-  - No test for multiple watch sources in one process
+  - No test for multiple watch sources in one process               → E2E-22
   - No test for custom registered parser/transform/sink
   - Metrics test does not assert exact counter values (presence only)
+  - Example YAML configs validate only (CFG-1); no runtime table     → CFG-2
