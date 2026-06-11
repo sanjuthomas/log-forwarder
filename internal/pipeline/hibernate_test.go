@@ -87,3 +87,71 @@ func TestPipelineHibernatesAfterBatchFlushFailure(t *testing.T) {
 	cancel()
 	<-done
 }
+
+func TestPipelineShutdownDrainsHibernateBatch(t *testing.T) {
+	watermarks, err := state.NewStore(filepath.Join(t.TempDir(), "watermarks.json"))
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	cfg := testPipelineConfig()
+	cfg.Pipeline.PublishBatch = config.PublishBatchConfig{
+		MaxBytes:       1 << 20,
+		FlushInterval:  "10ms",
+		OnFlushFailure: config.OnFlushFailureHibernate,
+		MaxAttempts:    2,
+	}
+	cfg.Pipeline.PublishRetry = config.PublishRetryConfig{
+		InitialBackoff: "1ms",
+		MaxBackoff:     "5ms",
+		MaxAttempts:    2,
+	}
+
+	const path = "/tmp/test.log"
+	sink := &thresholdSink{failUntil: 2}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pipe, err := New(cfg, sink, logger, Options{Watermarks: watermarks})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	lines := make(chan watcher.LineEvent, 1)
+	lines <- watcher.LineEvent{
+		Path:   path,
+		Line:   []byte("2024-01-01T00:00:00Z\tINFO\thibernate-line"),
+		Offset: 42,
+		Inode:  1,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		_ = pipe.Run(ctx, lines)
+		close(done)
+	}()
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if pipe.Hibernating() {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !pipe.Hibernating() {
+		t.Fatal("expected pipeline to enter hibernate after publish failure")
+	}
+
+	cancel()
+	<-done
+
+	if pipe.Hibernating() {
+		t.Fatal("expected hibernate to clear after shutdown drain")
+	}
+	entry, ok := watermarks.Get(path)
+	if !ok {
+		t.Fatal("expected watermark after shutdown drained hibernate batch")
+	}
+	if entry.Offset != 42 {
+		t.Fatalf("watermark offset = %d, want 42", entry.Offset)
+	}
+}

@@ -48,7 +48,12 @@ func (p *Pipeline) flushItems(ctx context.Context, items []pendingPublish, reaso
 		batchBytes += len(item.payload)
 	}
 
-	if err := p.publishAndAdvance(ctx, items); err != nil {
+	payloads := make([][]byte, len(items))
+	for i, item := range items {
+		payloads[i] = item.payload
+	}
+
+	if err := p.publishBatchWithRetry(ctx, payloads); err != nil {
 		switch p.cfg.Pipeline.PublishBatch.OnFlushFailureOrDefault() {
 		case config.OnFlushFailureHibernate:
 			if p.batchEnabled {
@@ -61,6 +66,14 @@ func (p *Pipeline) flushItems(ctx context.Context, items []pendingPublish, reaso
 				return p.handleDeadLetterFlush(ctx, items, err, reason, batchBytes)
 			}
 		}
+		p.metrics.RecordPublishBatchFlush(ctx, reason, "error", len(items), batchBytes)
+		return err
+	}
+
+	for range items {
+		p.metrics.RecordLinePublished(ctx)
+	}
+	if err := p.advanceWatermarks(ctx, items); err != nil {
 		p.metrics.RecordPublishBatchFlush(ctx, reason, "error", len(items), batchBytes)
 		return err
 	}

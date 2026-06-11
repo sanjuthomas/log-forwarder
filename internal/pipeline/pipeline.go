@@ -151,9 +151,22 @@ func (p *Pipeline) shutdown(ctx context.Context) error {
 		return err
 	}
 	if p.flusher != nil {
-		return p.flusher.shutdown(ctx)
+		if err := p.flusher.shutdown(ctx); err != nil {
+			return err
+		}
 	}
-	return nil
+	return p.drainHibernateBatch(ctx)
+}
+
+func (p *Pipeline) drainHibernateBatch(ctx context.Context) error {
+	if !p.Hibernating() {
+		return nil
+	}
+	batch := p.hibernateBatchSnapshot()
+	if len(batch) == 0 {
+		return nil
+	}
+	return p.flushItems(ctx, batch, "shutdown")
 }
 
 func (p *Pipeline) flushParser(ctx context.Context) error {
