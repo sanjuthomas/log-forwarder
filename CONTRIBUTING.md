@@ -139,8 +139,52 @@ Preview locally:
 - Prefer **minimal, focused diffs** over large refactors mixed with feature work.
 - Reuse existing abstractions (`pipeline`, `sink`, `state`, config validation helpers).
 - Comments only for non-obvious logic — code should mostly speak for itself.
+- **Document exported APIs** — every exported type, function, and method in production packages should have a brief godoc comment. Test files do not need per-test comments.
 - Config keys: add validation in `internal/config/`, document in wiki Config Catalog and Configuration Reference.
 - Avoid breaking changes to default config behavior without discussion in an issue first.
+
+## Copyright and licensing
+
+This project is released under the [MIT License](LICENSE). By opening a pull request, you agree that your contributions are licensed under the same terms.
+
+### File headers
+
+Every Go source file should begin with a copyright and SPDX license identifier:
+
+```go
+// Copyright (c) 2026 Your Name
+// SPDX-License-Identifier: MIT
+```
+
+| Situation | What to do |
+|-----------|------------|
+| **New file you create** | Use **your name** (or your legal entity) and the current year in the copyright line. |
+| **Existing file you modify** | **Keep existing copyright lines.** Do not replace the original author. If your change is substantial, add a second line with your name and year. |
+| **Minor edits** | Updating an existing copyright line is not required for small fixes. |
+
+Example after a substantial contribution to an existing file:
+
+```go
+// Copyright (c) 2026 Sanju Thomas
+// Copyright (c) 2026 Jane Contributor
+// SPDX-License-Identifier: MIT
+```
+
+The SPDX line is always `MIT` — the same license as the project root `LICENSE` file.
+
+### Helper script
+
+To prepend the standard header to Go files that are missing it:
+
+```bash
+./scripts/add-copyright-header.sh
+```
+
+Pass your name when contributing new files, or edit the header manually. Maintainers use this script for bulk updates; contributors should set their own copyright on files they add.
+
+### Pull request attestation
+
+When you open a PR, confirm in the template that new files include your copyright and that all contributions are offered under the MIT License (see [License](#license) below).
 
 ## Release and Docker images
 

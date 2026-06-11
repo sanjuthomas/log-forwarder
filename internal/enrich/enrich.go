@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Sanju Thomas
+// SPDX-License-Identifier: MIT
+
 package enrich
 
 import (
@@ -12,6 +15,7 @@ type Enricher interface {
 	Enrich(record transform.Record) transform.Record
 }
 
+// Factory constructs an enricher from configuration. Register custom enrichers in init().
 type Factory func(cfg config.EnricherConfig) (Enricher, error)
 
 var registry = map[string]Factory{}
@@ -22,6 +26,7 @@ func Register(name string, factory Factory) {
 	config.RegisterEnricherType(name)
 }
 
+// NewChain builds the ordered enricher list from configuration.
 func NewChain(cfgs []config.EnricherConfig) ([]Enricher, error) {
 	chain := make([]Enricher, 0, len(cfgs))
 	for _, cfg := range cfgs {
@@ -38,6 +43,7 @@ func NewChain(cfgs []config.EnricherConfig) ([]Enricher, error) {
 	return chain, nil
 }
 
+// Apply runs each enricher in order and returns the updated record.
 func Apply(chain []Enricher, record transform.Record) transform.Record {
 	for _, e := range chain {
 		record = e.Enrich(record)

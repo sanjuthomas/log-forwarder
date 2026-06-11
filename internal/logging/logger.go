@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Sanju Thomas
+// SPDX-License-Identifier: MIT
+
 package logging
 
 import (
@@ -13,6 +16,7 @@ type noopCloser struct{}
 
 func (noopCloser) Close() error { return nil }
 
+// New builds a slog logger and optional file closer from logging configuration.
 func New(cfg config.LoggingConfig) (*slog.Logger, io.Closer, error) {
 	level := slog.LevelInfo
 	switch cfg.Level {

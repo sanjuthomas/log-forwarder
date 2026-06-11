@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Sanju Thomas
+// SPDX-License-Identifier: MIT
+
 package pipeline
 
 import (
@@ -46,11 +49,13 @@ type Pipeline struct {
 	consecutiveDLQ int
 }
 
+// Options configures optional pipeline dependencies injected at construction.
 type Options struct {
 	Watermarks *state.Store
 	Metrics    *metrics.Collector
 }
 
+// New constructs a pipeline wired to the given sink and configuration.
 func New(cfg *config.Config, s sink.Sink, logger *slog.Logger, opts Options) (*Pipeline, error) {
 	p, err := parser.New(cfg.Parser)
 	if err != nil {
@@ -94,6 +99,7 @@ func New(cfg *config.Config, s sink.Sink, logger *slog.Logger, opts Options) (*P
 	return pipe, nil
 }
 
+// PublishBufferActiveBytes reports bytes currently held in the publish batch buffer.
 func (p *Pipeline) PublishBufferActiveBytes() int64 {
 	if p.flusher == nil {
 		return 0
@@ -101,6 +107,7 @@ func (p *Pipeline) PublishBufferActiveBytes() int64 {
 	return p.flusher.activeBytes()
 }
 
+// Run consumes tailed lines until ctx is canceled or the lines channel closes.
 func (p *Pipeline) Run(ctx context.Context, lines <-chan watcher.LineEvent) error {
 	p.runCtx = ctx
 	defer func() { p.runCtx = nil }()

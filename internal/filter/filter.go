@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Sanju Thomas
+// SPDX-License-Identifier: MIT
+
 package filter
 
 import (
@@ -12,6 +15,7 @@ type Predicate interface {
 	Match(record transform.Record) bool
 }
 
+// Factory constructs a filter predicate from a single rule configuration.
 type Factory func(cfg config.FilterRuleConfig) (Predicate, error)
 
 var registry = map[string]Factory{}

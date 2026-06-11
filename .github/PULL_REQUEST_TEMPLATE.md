@@ -27,3 +27,5 @@ Closes #
 - [ ] Changes are scoped to one logical topic
 - [ ] User-facing behavior or config changes are documented (wiki / configs / README as needed)
 - [ ] No secrets or credentials in config examples or logs
+- [ ] New Go files include my copyright line and `// SPDX-License-Identifier: MIT`
+- [ ] I license this contribution under the project [MIT License](../LICENSE)

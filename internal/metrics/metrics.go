@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Sanju Thomas
+// SPDX-License-Identifier: MIT
+
 package metrics
 
 import (
@@ -52,6 +55,7 @@ type Collector struct {
 	proc     *process.Process
 }
 
+// Snapshot supplies live values for gauges exposed on the metrics HTTP server.
 type Snapshot struct {
 	FilesWatched             func() int64
 	BufferDepth              func() int64
