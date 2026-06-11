@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Sanju Thomas
+// SPDX-License-Identifier: MIT
+
 // Package main demonstrates registering custom transformers and enrichers.
 //
 // Build with:

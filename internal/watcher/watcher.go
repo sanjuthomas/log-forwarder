@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Sanju Thomas
+// SPDX-License-Identifier: MIT
+
 package watcher
 
 import (
@@ -19,11 +22,15 @@ import (
 	"github.com/sanjuthomas/log-forwarder/internal/state"
 )
 
-// LineEvent carries a single log line and its source file path.
+// LineEvent carries a single tailed log line and its source file metadata.
 type LineEvent struct {
+	// Path is the absolute path of the source log file.
 	Path   string
+	// Line is the trimmed line bytes without trailing newline characters.
 	Line   []byte
+	// Offset is the byte offset in Path after reading this line.
 	Offset int64
+	// Inode is the source file inode at read time (rotation detection).
 	Inode  uint64
 }
 
@@ -50,6 +57,7 @@ type fileState struct {
 	inode  uint64
 }
 
+// New constructs a watcher for the configured watch paths and pipeline buffer policy.
 func New(cfg *config.Config, lines chan<- LineEvent, watermarks *state.Store, collector *metrics.Collector, logger *slog.Logger) *Watcher {
 	onFull := cfg.Pipeline.OnFull
 	if onFull == "" {
@@ -67,12 +75,14 @@ func New(cfg *config.Config, lines chan<- LineEvent, watermarks *state.Store, co
 	}
 }
 
+// FileCount returns the number of log files currently being tailed.
 func (w *Watcher) FileCount() int {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return len(w.files)
 }
 
+// Run watches configured directories until ctx is canceled.
 func (w *Watcher) Run(ctx context.Context) error {
 	w.runCtx = ctx
 	defer func() { w.runCtx = nil }()

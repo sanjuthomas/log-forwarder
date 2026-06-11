@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Sanju Thomas
+// SPDX-License-Identifier: MIT
+
 package state
 
 import (
@@ -10,6 +13,7 @@ import (
 	"time"
 )
 
+// Entry is the persisted read position for one tailed log file.
 type Entry struct {
 	Offset int64  `json:"offset"`
 	Inode  uint64 `json:"inode"`
@@ -37,6 +41,7 @@ type fileState struct {
 	Files map[string]Entry `json:"files"`
 }
 
+// Store persists per-file byte offsets and inodes for resume-after-restart.
 type Store struct {
 	path              string
 	opts              Options
@@ -53,6 +58,7 @@ func (s *Store) CorruptBackupPath() string {
 	return s.corruptBackupPath
 }
 
+// NewStore loads or creates the watermark file at path.
 func NewStore(path string, opts ...Options) (*Store, error) {
 	var o Options
 	if len(opts) > 0 {
@@ -96,6 +102,7 @@ func (s *Store) load() error {
 	return nil
 }
 
+// Get returns the stored watermark for path, if any.
 func (s *Store) Get(path string) (Entry, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -103,6 +110,7 @@ func (s *Store) Get(path string) (Entry, bool) {
 	return entry, ok
 }
 
+// Set records the latest offset and inode for path and persists when policy requires.
 func (s *Store) Set(path string, offset int64, inode uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -115,6 +123,7 @@ func (s *Store) Set(path string, offset int64, inode uint64) error {
 	return nil
 }
 
+// Flush writes pending watermark updates to disk immediately.
 func (s *Store) Flush() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -124,6 +133,7 @@ func (s *Store) Flush() error {
 	return s.persistLocked()
 }
 
+// RunPeriodicFlush persists dirty watermarks on a fixed interval until ctx is canceled.
 func (s *Store) RunPeriodicFlush(ctx context.Context) {
 	if s.opts.FlushInterval <= 0 {
 		return

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Sanju Thomas
+// SPDX-License-Identifier: MIT
+
 package sink
 
 import (
@@ -23,6 +26,7 @@ type Checker interface {
 	Check(ctx context.Context) error
 }
 
+// Factory constructs a sink from configuration. Register custom sinks in init().
 type Factory func(cfg config.SinkConfig) (Sink, error)
 
 var registry = map[string]Factory{}
@@ -33,6 +37,7 @@ func Register(name string, factory Factory) {
 	config.RegisterSinkType(name)
 }
 
+// New creates the configured sink implementation (kafka, file, http-noauth, or custom).
 func New(cfg config.SinkConfig) (Sink, error) {
 	sinkType := cfg.Type
 	if sinkType == "" {

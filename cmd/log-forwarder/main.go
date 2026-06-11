@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Sanju Thomas
+// SPDX-License-Identifier: MIT
+
+// Package main is the entrypoint for the built-in log-forwarder binary.
 package main
 
 import (

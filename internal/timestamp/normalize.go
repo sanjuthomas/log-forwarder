@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Sanju Thomas
+// SPDX-License-Identifier: MIT
+
 package timestamp
 
 import (
@@ -24,6 +27,7 @@ type Normalizer struct {
 	now      func() time.Time
 }
 
+// New constructs a timestamp normalizer, or nil when timestamp normalization is disabled.
 func New(cfg config.TimestampConfig) (*Normalizer, error) {
 	if !cfg.Enabled() {
 		return nil, nil

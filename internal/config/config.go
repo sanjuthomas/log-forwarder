@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Sanju Thomas
+// SPDX-License-Identifier: MIT
+
 package config
 
 import (
@@ -9,6 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Config is the root YAML configuration for a forwarder process.
 type Config struct {
 	Watch      WatchConfig      `yaml:"watch"`
 	Sink       SinkConfig       `yaml:"sink"`
@@ -22,11 +26,13 @@ type Config struct {
 	Metrics    MetricsConfig    `yaml:"metrics"`
 }
 
+// WatchSource pairs one directory with its filename glob patterns.
 type WatchSource struct {
 	Path     string   `yaml:"path"`
 	Patterns []string `yaml:"patterns"`
 }
 
+// WatchConfig controls which log directories and files are tailed.
 type WatchConfig struct {
 	Paths    []string      `yaml:"paths"`
 	Patterns []string      `yaml:"patterns"`
@@ -35,6 +41,7 @@ type WatchConfig struct {
 	State    StateConfig   `yaml:"state"`
 }
 
+// StateConfig controls watermark file location and persistence behavior.
 type StateConfig struct {
 	Path            string `yaml:"path"`
 	FlushInterval   string `yaml:"flush_interval"`
@@ -59,11 +66,13 @@ func (c WatchConfig) Entries() []WatchSource {
 	return entries
 }
 
+// ParserConfig selects the parser implementation and its options.
 type ParserConfig struct {
 	Type          string `yaml:"type"`
 	StartPattern  string `yaml:"start_pattern"`
 }
 
+// TransformConfig selects the transformer implementation and its options.
 type TransformConfig struct {
 	Type      string   `yaml:"type"`
 	Delimiter string   `yaml:"delimiter"`
@@ -72,11 +81,13 @@ type TransformConfig struct {
 	OnError   string   `yaml:"on_error"`
 }
 
+// EnricherConfig selects one enricher implementation and its options.
 type EnricherConfig struct {
 	Type   string            `yaml:"type"`
 	Fields map[string]string `yaml:"fields"`
 }
 
+// Load reads and validates configuration from a YAML file.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -95,6 +106,7 @@ func Load(path string) (*Config, error) {
 	return cfg, nil
 }
 
+// Default returns built-in configuration used when no config file is supplied.
 func Default() *Config {
 	wd, _ := os.Getwd()
 	if wd == "" {
@@ -142,6 +154,7 @@ func Default() *Config {
 	}
 }
 
+// StatePath returns the effective watermark file path.
 func (c *Config) StatePath() string {
 	if c.Watch.State.Path != "" {
 		return c.Watch.State.Path
@@ -149,6 +162,7 @@ func (c *Config) StatePath() string {
 	return ".log-forwarder/watermarks.json"
 }
 
+// Validate checks the full configuration for consistency and supported values.
 func (c *Config) Validate() error {
 	if len(c.Watch.Sources) > 0 {
 		for i, source := range c.Watch.Sources {
@@ -200,6 +214,7 @@ func (c *Config) Validate() error {
 	return c.validateState()
 }
 
+// PollInterval parses watch.poll as a time.Duration.
 func (c *Config) PollInterval() time.Duration {
 	d, _ := time.ParseDuration(c.Watch.Poll)
 	return d

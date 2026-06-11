@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Sanju Thomas
+// SPDX-License-Identifier: MIT
+
 package parser
 
 import (
@@ -21,6 +24,7 @@ type Parser interface {
 	Flush() ([]Event, error)
 }
 
+// Factory constructs a parser from configuration. Register custom parsers in init().
 type Factory func(cfg config.ParserConfig) (Parser, error)
 
 var registry = map[string]Factory{}
@@ -31,6 +35,7 @@ func Register(name string, factory Factory) {
 	config.RegisterParserType(name)
 }
 
+// New selects and constructs the configured parser implementation.
 func New(cfg config.ParserConfig) (Parser, error) {
 	parserType := cfg.Type
 	if parserType == "" {
