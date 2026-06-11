@@ -5,6 +5,7 @@ package metrics
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -557,7 +558,15 @@ func (c *Collector) RecordWatermarkFlushError(ctx context.Context) {
 func healthHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"status":"UP"}`))
+	_ = json.NewEncoder(w).Encode(healthResponse{
+		Status:    "UP",
+		ProcessID: os.Getpid(),
+	})
+}
+
+type healthResponse struct {
+	Status    string `json:"status"`
+	ProcessID int    `json:"process_id"`
 }
 
 func noopCollector() (*Collector, func(context.Context) error, error) {

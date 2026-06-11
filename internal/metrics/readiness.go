@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -23,9 +24,10 @@ type Readiness struct {
 }
 
 type readinessResponse struct {
-	Status string `json:"status"`
-	Reason string `json:"reason,omitempty"`
-	Detail string `json:"detail,omitempty"`
+	Status    string `json:"status"`
+	ProcessID int    `json:"process_id"`
+	Reason    string `json:"reason,omitempty"`
+	Detail    string `json:"detail,omitempty"`
 }
 
 func (r *Readiness) evaluate(ctx context.Context) readinessResponse {
@@ -89,6 +91,7 @@ func (r *Readiness) bufferThresholdEvents() int64 {
 func (r *Readiness) handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		result := r.evaluate(req.Context())
+		result.ProcessID = os.Getpid()
 		w.Header().Set("Content-Type", "application/json")
 		if result.Status != "READY" {
 			w.WriteHeader(http.StatusServiceUnavailable)
