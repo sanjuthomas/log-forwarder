@@ -12,14 +12,42 @@ func TestATCConfigDefaults(t *testing.T) {
 	t.Parallel()
 
 	cfg := ATCConfig{Enabled: true}
-	if got := cfg.BaseURL(); got != defaultATCURL {
-		t.Fatalf("BaseURL() = %q, want %q", got, defaultATCURL)
+	wantBase := "http://localhost:8090"
+	if got := cfg.BaseURL(); got != wantBase {
+		t.Fatalf("BaseURL() = %q, want %q", got, wantBase)
 	}
-	if got := cfg.InstancesURL(); got != defaultATCURL+"/api/instances" {
-		t.Fatalf("InstancesURL() = %q, want %q", got, defaultATCURL+"/api/instances")
+	if got := cfg.InstancesURL(); got != wantBase+"/api/instances" {
+		t.Fatalf("InstancesURL() = %q, want %q", got, wantBase+"/api/instances")
 	}
 	if got := cfg.TimeoutDuration(); got != 5*time.Second {
 		t.Fatalf("TimeoutDuration() = %v, want 5s", got)
+	}
+}
+
+func TestATCConfigHostPort(t *testing.T) {
+	t.Parallel()
+
+	cfg := ATCConfig{
+		Enabled: true,
+		Host:    "atc.internal",
+		Port:    9000,
+	}
+	if got := cfg.BaseURL(); got != "http://atc.internal:9000" {
+		t.Fatalf("BaseURL() = %q, want http://atc.internal:9000", got)
+	}
+}
+
+func TestATCConfigURLOverridesHostPort(t *testing.T) {
+	t.Parallel()
+
+	cfg := ATCConfig{
+		Enabled: true,
+		Host:    "ignored",
+		Port:    1,
+		URL:     "https://atc.example.com/",
+	}
+	if got := cfg.BaseURL(); got != "https://atc.example.com" {
+		t.Fatalf("BaseURL() = %q", got)
 	}
 }
 
@@ -64,6 +92,13 @@ func TestValidateATCEnabledRequiresValidURL(t *testing.T) {
 
 	cfg = Default()
 	cfg.ATC.Enabled = true
+	cfg.ATC.Port = 70000
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error for invalid atc.port")
+	}
+
+	cfg = Default()
+	cfg.ATC.Enabled = true
 	cfg.ATC.Timeout = "not-a-duration"
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected validation error for invalid atc.timeout")
@@ -75,7 +110,8 @@ func TestValidateATCEnabledValid(t *testing.T) {
 
 	cfg := Default()
 	cfg.ATC.Enabled = true
-	cfg.ATC.URL = "http://atc.internal:8090"
+	cfg.ATC.Host = "atc.internal"
+	cfg.ATC.Port = 8090
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}

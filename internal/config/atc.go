@@ -10,22 +10,39 @@ import (
 	"time"
 )
 
-const defaultATCURL = "http://localhost:8090"
+const (
+	defaultATCHost = "localhost"
+	defaultATCPort = 8090
+)
 
 // ATCConfig controls registration with the log-forwarder-atc controller.
 type ATCConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	URL     string `yaml:"url"`
+	Host    string `yaml:"host"`
+	Port    int    `yaml:"port"`
 	Timeout string `yaml:"timeout"`
 }
 
 // BaseURL returns the ATC base URL without a trailing slash.
+// When url is set, it is used as-is. Otherwise host and port are combined
+// (defaults: localhost:8090).
 func (c ATCConfig) BaseURL() string {
-	raw := strings.TrimSpace(c.URL)
-	if raw == "" {
-		raw = defaultATCURL
+	if raw := strings.TrimSpace(c.URL); raw != "" {
+		return strings.TrimRight(raw, "/")
 	}
-	return strings.TrimRight(raw, "/")
+
+	host := strings.TrimSpace(c.Host)
+	if host == "" {
+		host = defaultATCHost
+	}
+
+	port := c.Port
+	if port == 0 {
+		port = defaultATCPort
+	}
+
+	return fmt.Sprintf("http://%s:%d", host, port)
 }
 
 // InstancesURL returns the full instances registration endpoint.
@@ -57,6 +74,9 @@ func (c *Config) validateATC() error {
 	}
 	if parsed.Host == "" {
 		return fmt.Errorf("atc.url must include a host")
+	}
+	if c.ATC.Port < 0 || c.ATC.Port > 65535 {
+		return fmt.Errorf("atc.port must be between 0 and 65535")
 	}
 	if c.ATC.Timeout != "" {
 		if _, err := time.ParseDuration(c.ATC.Timeout); err != nil {
