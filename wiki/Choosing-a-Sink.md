@@ -28,6 +28,31 @@ sink:
 
 **You need:** network access to brokers, topic created (or auto-create enabled on the cluster).
 
+### Kafka delivery semantics
+
+The built-in Kafka sink is tuned for **at-least-once** delivery with low latency — **not** exactly-once.
+
+| Setting | Value | Effect |
+|---------|-------|--------|
+| `RequiredAcks` | Leader only (`RequireOne`) | Record is considered published when the partition leader acks. Not all in-sync replicas must ack. |
+| `Async` | `false` | Each batch write blocks until the broker responds. |
+| Idempotent producer | Not enabled | No broker-side deduplication of producer retries. |
+| Watermark persist | Debounced (`watch.state.flush_interval`, default `1s`) | On crash or `kill -9`, the on-disk watermark may lag published records by up to one flush window. |
+
+**Duplicate window:** If the process dies after Kafka accepts a batch but before the watermark file is flushed, restart re-tails those bytes and publishes them again. Graceful shutdown (`SIGINT` / `SIGTERM`) flushes watermarks and shrinks this window.
+
+**Tuning duplicate risk vs I/O:**
+
+- Lower `watch.state.flush_interval` (or set `0` to persist every line) — smaller duplicate window, more disk writes
+- Raise `flush_interval` under heavy load — fewer writes, larger duplicate window
+- `watch.state.flush_every` — optional count-based flush in addition to the interval
+
+**Consumers** should assume duplicates and dedupe (natural keys in the JSON, Kafka compaction, or downstream idempotent ingest).
+
+**Not configurable today:** `RequireAll` acks and Kafka idempotent producer settings are fixed in code. Stricter durability would be a future enhancement — track via GitHub issues if you need it.
+
+See also [[Watermarks and Restarts]] and [[Configuration-Reference#Kafka sink]].
+
 ## File (`sink.type: file`)
 
 ```yaml

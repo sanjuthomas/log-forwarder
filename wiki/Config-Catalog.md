@@ -129,6 +129,8 @@ One sink per forwarder process. See [[Choosing a Sink]].
 | `sink.kafka.brokers` | Kafka broker addresses | `localhost:9092` | Production cluster bootstrap servers |
 | `sink.kafka.topic` | Topic for JSON records | `logs` | One topic per stream or tenant |
 | `sink.kafka.connect_timeout` | Startup connectivity check timeout | `10s` | Fail fast at boot if broker unreachable; lower in smoke tests |
+
+**Delivery:** Built-in Kafka sink is **at-least-once** (leader ack, debounced watermarks). Not exactly-once — plan for consumer dedupe. See [[Choosing a Sink#Kafka delivery semantics]].
 | `sink.kafka.security.protocol` | Wire protocol | `PLAINTEXT` | `SSL`, `SASL_PLAINTEXT`, `SASL_SSL` in secured environments. See [`examples/kafka/`](https://github.com/sanjuthomas/log-forwarder/tree/main/examples/kafka) |
 | `sink.kafka.security.tls.ca_file` | CA bundle to verify broker | — | Required for `SSL` / `SASL_SSL` (unless `insecure_skip_verify` for dev) |
 | `sink.kafka.security.tls.cert_file` | Client certificate | — | mTLS: set with `key_file` |

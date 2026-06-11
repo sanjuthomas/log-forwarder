@@ -153,6 +153,11 @@ func main() {
 	go func() { errCh <- w.Run(runCtx) }()
 	go func() { errCh <- pipe.Run(runCtx, lines) }()
 
+	if cfg.Pipeline.OnFull == "drop" {
+		logger.Warn("pipeline.on_full is drop — lines discarded when the buffer is full are permanent loss and are not replayed on restart",
+			"buffer_size", cfg.Pipeline.BufferSize,
+		)
+	}
 	logger.Info("custom log forwarder started")
 	if err := runner.Wait(errCh, runCancel); err != nil {
 		logger.Error("forwarder stopped", "error", err)

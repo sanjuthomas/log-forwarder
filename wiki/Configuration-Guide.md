@@ -139,6 +139,10 @@ pipeline:
 
 Usually leave defaults unless you are tuning backpressure under heavy load.
 
+**`on_full: block` (default)** — when the watcher → pipeline buffer is full, tailing pauses until the pipeline drains. This applies backpressure and preserves every line.
+
+**`on_full: drop`** — when the buffer is full, new lines are discarded permanently. Dropped lines never reach the sink and **never update watermarks**. Restart does **not** replay them; under sustained overload the forwarder can keep dropping new log bytes indefinitely while `log_forwarder_pipeline_buffer_dropped` rises. Use only when gaps in forwarded logs are acceptable. See [[Configuration-Reference#pipelineon_full-block-vs-drop]] and [[Troubleshooting#Permanent log loss from pipelineon_full-drop]].
+
 ## `logging` — forwarder's own logs
 
 ```yaml

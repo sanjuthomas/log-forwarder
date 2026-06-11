@@ -177,6 +177,11 @@ func main() {
 			"readiness_path", cfg.Metrics.Readiness.ReadyPath(),
 		)
 	}
+	if cfg.Pipeline.OnFull == "drop" {
+		logger.Warn("pipeline.on_full is drop — lines discarded when the buffer is full are permanent loss and are not replayed on restart",
+			"buffer_size", cfg.Pipeline.BufferSize,
+		)
+	}
 	logger.Info("log forwarder started", startAttrs...)
 
 	if err := runner.Wait(errCh, runCancel); err != nil {
