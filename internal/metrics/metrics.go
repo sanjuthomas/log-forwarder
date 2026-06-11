@@ -44,6 +44,7 @@ type Collector struct {
 	publishBatchBytes        metric.Int64Histogram
 	publishDeadLetterBatches metric.Int64Counter
 	publishDuration          metric.Float64Histogram
+	watermarkFlushErrors     metric.Int64Counter
 
 	provider *sdkmetric.MeterProvider
 	server   *http.Server
@@ -290,6 +291,15 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		return nil, err
 	}
 
+	watermarkFlushErrors, err := meter.Int64Counter(
+		"log_forwarder.watermark.flush.errors",
+		metric.WithDescription("Total number of failed periodic watermark persistence flushes."),
+		metric.WithUnit("{error}"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	if _, err := meter.Int64ObservableGauge(
 		"log_forwarder.files.watched",
 		metric.WithDescription("Number of log files currently being tailed."),
@@ -388,6 +398,7 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 		publishBatchBytes:        publishBatchBytes,
 		publishDeadLetterBatches: publishDeadLetterBatches,
 		publishDuration:          publishDuration,
+		watermarkFlushErrors:     watermarkFlushErrors,
 	}, nil
 }
 
@@ -530,6 +541,13 @@ func (c *Collector) RecordPublishDuration(ctx context.Context, duration time.Dur
 		return
 	}
 	c.publishDuration.Record(ctx, duration.Seconds())
+}
+
+func (c *Collector) RecordWatermarkFlushError(ctx context.Context) {
+	if c == nil || c.watermarkFlushErrors == nil {
+		return
+	}
+	c.watermarkFlushErrors.Add(ctx, 1)
 }
 
 func healthHandler(w http.ResponseWriter, _ *http.Request) {

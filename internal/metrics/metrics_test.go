@@ -100,6 +100,7 @@ func TestMetricsServerExposesApplicationMetrics(t *testing.T) {
 	collector.RecordPublishFailure(context.Background())
 	collector.RecordPublishRetry(context.Background())
 	collector.RecordPublishDuration(context.Background(), 250000000) // 250ms
+	collector.RecordWatermarkFlushError(context.Background())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
@@ -129,6 +130,7 @@ func TestMetricsServerExposesApplicationMetrics(t *testing.T) {
 				"log_forwarder_publish_failures",
 				"log_forwarder_publish_retries",
 				"log_forwarder_publish_duration",
+				"log_forwarder_watermark_flush_errors",
 			} {
 				if !strings.Contains(metricsBody, want) {
 					t.Fatalf("metrics body missing %q", want)
