@@ -101,8 +101,16 @@ Every PR to `main` must pass:
 |-------|----------------|
 | **build** | `go test ./...`, `go test -race ./...`, build main and custom example |
 | **kafka-smoke** | Kafka round-trip and dead-letter smoke scripts |
+| **maintainer-review** | External contributors: `@sanjuthomas` must approve. Maintainer-authored PRs skip this check. |
 
-**Approving reviews are not required** — maintainers can merge their own PRs once CI is green. External contributors still need a maintainer to merge (fork workflow). Direct pushes to `main` remain blocked; all changes go through a pull request.
+**Review policy**
+
+| PR author | Approval required |
+|-----------|-------------------|
+| **@sanjuthomas** (maintainer) | No — merge when CI is green |
+| **Anyone else** | Yes — maintainer must approve before merge |
+
+Direct pushes to `main` remain blocked; all changes go through a pull request.
 
 Address review feedback with new commits on the same branch when offered; avoid force-pushing unless you need to rebase after `main` moves.
 

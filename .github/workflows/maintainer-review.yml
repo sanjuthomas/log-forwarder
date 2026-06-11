@@ -1,0 +1,61 @@
+# Require maintainer approval for PRs from external contributors.
+# PRs authored by @sanjuthomas skip this check (maintainer self-merge after CI).
+name: maintainer-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  maintainer-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify maintainer approval for external contributors
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const maintainer = 'sanjuthomas';
+            const { owner, repo } = context.repo;
+
+            const pull_number = context.payload.pull_request?.number
+              ?? context.payload.review?.pull_request_url?.split('/').pop();
+            if (!pull_number) {
+              core.setFailed('Cannot determine pull request number.');
+              return;
+            }
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: Number(pull_number),
+            });
+
+            if (pr.user.login === maintainer) {
+              core.notice(`PR author is @${maintainer}; maintainer review not required.`);
+              return;
+            }
+
+            const reviews = await github.paginate(
+              github.rest.pulls.listReviews,
+              { owner, repo, pull_number: pr.number, per_page: 100 }
+            );
+
+            const latestByUser = new Map();
+            for (const review of reviews) {
+              latestByUser.set(review.user.login, review.state);
+            }
+
+            if (latestByUser.get(maintainer) === 'APPROVED') {
+              core.notice(`Maintainer @${maintainer} approved this PR.`);
+              return;
+            }
+
+            core.setFailed(
+              `PR author @${pr.user.login} is not the maintainer. ` +
+              `@${maintainer} must approve before merge.`
+            );
