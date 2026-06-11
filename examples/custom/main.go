@@ -92,13 +92,20 @@ func main() {
 
 	lines := make(chan watcher.LineEvent, cfg.Pipeline.BufferSize)
 
-	watermarks, err := state.NewStore(cfg.StatePath(), watermarkOptions(cfg))
+	wmOpts := watermarkOptions(cfg)
+	watermarks, err := state.NewStore(cfg.StatePath(), wmOpts)
 	if err != nil {
 		logger.Error("load watermarks", "path", cfg.StatePath(), "error", err)
 		os.Exit(1)
 	}
 	flushCtx, flushCancel := context.WithCancel(context.Background())
-	go watermarks.RunPeriodicFlush(flushCtx)
+	if wmOpts.FlushInterval > 0 {
+		statePath := cfg.StatePath()
+		watermarks.SetOnPeriodicFlushError(func(err error) {
+			logger.Error("periodic watermark flush failed", "path", statePath, "error", err)
+		})
+		go watermarks.RunPeriodicFlush(flushCtx)
+	}
 	defer func() {
 		flushCancel()
 		if err := watermarks.Flush(); err != nil {

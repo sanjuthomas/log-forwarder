@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -125,6 +126,48 @@ func TestStorePeriodicFlush(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	t.Fatal("timeout waiting for periodic watermark flush")
+}
+
+func TestStorePeriodicFlushSurfacesError(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "watermarks.json")
+	if err := os.WriteFile(path, []byte("{\n  \"files\": {}\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+
+	var flushErrors atomic.Int32
+	store, err := NewStore(path, Options{
+		FlushInterval: 20 * time.Millisecond,
+		OnPeriodicFlushError: func(error) {
+			flushErrors.Add(1)
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	if err := store.Set("/tmp/app.log", 64, 7); err != nil {
+		t.Fatalf("Set() error = %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go store.RunPeriodicFlush(ctx)
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if flushErrors.Load() > 0 {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("timeout waiting for periodic watermark flush error callback")
 }
 
 func TestStoreFlushNoOpWhenClean(t *testing.T) {

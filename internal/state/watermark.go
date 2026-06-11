@@ -20,6 +20,15 @@ type Entry struct {
 type Options struct {
 	FlushInterval time.Duration
 	FlushEvery    int
+	// OnPeriodicFlushError is called when RunPeriodicFlush fails to persist.
+	OnPeriodicFlushError func(error)
+}
+
+// SetOnPeriodicFlushError registers a callback for interval flush failures.
+func (s *Store) SetOnPeriodicFlushError(fn func(error)) {
+	s.mu.Lock()
+	s.onPeriodicFlushError = fn
+	s.mu.Unlock()
 }
 
 type fileState struct {
@@ -29,6 +38,7 @@ type fileState struct {
 type Store struct {
 	path              string
 	opts              Options
+	onPeriodicFlushError func(error)
 	mu                sync.Mutex
 	files             map[string]Entry
 	dirty             bool
@@ -41,9 +51,10 @@ func NewStore(path string, opts ...Options) (*Store, error) {
 		o = opts[0]
 	}
 	s := &Store{
-		path:  path,
-		opts:  o,
-		files: make(map[string]Entry),
+		path:                 path,
+		opts:                 o,
+		onPeriodicFlushError: o.OnPeriodicFlushError,
+		files:                make(map[string]Entry),
 	}
 	if err := s.load(); err != nil && !os.IsNotExist(err) {
 		return nil, err
@@ -108,7 +119,12 @@ func (s *Store) RunPeriodicFlush(ctx context.Context) {
 			return
 		case <-ticker.C:
 			if err := s.Flush(); err != nil {
-				// Best-effort background flush; pipeline Set errors still surface on count-based flush.
+				s.mu.Lock()
+				onError := s.onPeriodicFlushError
+				s.mu.Unlock()
+				if onError != nil {
+					onError(err)
+				}
 				continue
 			}
 		}
