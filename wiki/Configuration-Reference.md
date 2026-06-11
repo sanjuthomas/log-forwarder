@@ -15,6 +15,7 @@ Controls which log files are tailed.
 | `state.path` | Path to the watermark file (default `.log-forwarder/watermarks.json`) |
 | `state.flush_interval` | How often to persist watermarks to disk (default `1s`; set `0` to persist every line) |
 | `state.flush_every` | Optional count-based flush: persist after this many in-memory updates (default disabled) |
+| `state.reset_on_corrupt` | When `true`, archive a corrupt watermark file on startup (`{path}.corrupt.{timestamp}`) and start fresh (same as `--reset-watermarks`) |
 
 Use **`sources`** when patterns differ per directory, or **`paths`** + **`patterns`** when every directory shares the same globs.
 

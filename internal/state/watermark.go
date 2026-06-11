@@ -20,6 +20,8 @@ type Entry struct {
 type Options struct {
 	FlushInterval time.Duration
 	FlushEvery    int
+	// ResetOnCorrupt archives a corrupt watermark file and starts with a fresh store.
+	ResetOnCorrupt bool
 	// OnPeriodicFlushError is called when RunPeriodicFlush fails to persist.
 	OnPeriodicFlushError func(error)
 }
@@ -39,10 +41,16 @@ type Store struct {
 	path              string
 	opts              Options
 	onPeriodicFlushError func(error)
+	corruptBackupPath string
 	mu                sync.Mutex
 	files             map[string]Entry
 	dirty             bool
 	updatesSinceFlush int
+}
+
+// CorruptBackupPath returns the archived path when ResetOnCorrupt recovered from a corrupt file.
+func (s *Store) CorruptBackupPath() string {
+	return s.corruptBackupPath
 }
 
 func NewStore(path string, opts ...Options) (*Store, error) {
@@ -56,7 +64,18 @@ func NewStore(path string, opts ...Options) (*Store, error) {
 		onPeriodicFlushError: o.OnPeriodicFlushError,
 		files:                make(map[string]Entry),
 	}
-	if err := s.load(); err != nil && !os.IsNotExist(err) {
+	if err := s.load(); err != nil {
+		if os.IsNotExist(err) {
+			return s, nil
+		}
+		if isCorruptWatermarkError(err) && o.ResetOnCorrupt {
+			backup, archiveErr := archiveCorruptWatermark(s.path)
+			if archiveErr != nil {
+				return nil, fmt.Errorf("reset corrupt watermark %q: %w", s.path, archiveErr)
+			}
+			s.corruptBackupPath = backup
+			return s, nil
+		}
 		return nil, err
 	}
 	return s, nil
@@ -69,7 +88,7 @@ func (s *Store) load() error {
 	}
 	var state fileState
 	if err := json.Unmarshal(data, &state); err != nil {
-		return fmt.Errorf("parse watermark file: %w", err)
+		return &CorruptWatermarkError{Path: s.path, Cause: err}
 	}
 	if state.Files != nil {
 		s.files = state.Files

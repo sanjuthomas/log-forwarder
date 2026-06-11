@@ -36,9 +36,10 @@ type WatchConfig struct {
 }
 
 type StateConfig struct {
-	Path          string `yaml:"path"`
-	FlushInterval string `yaml:"flush_interval"`
-	FlushEvery    int    `yaml:"flush_every"`
+	Path            string `yaml:"path"`
+	FlushInterval   string `yaml:"flush_interval"`
+	FlushEvery      int    `yaml:"flush_every"`
+	ResetOnCorrupt  bool   `yaml:"reset_on_corrupt"`
 }
 
 // Entries returns the effective watch sources. When sources is set, it is used

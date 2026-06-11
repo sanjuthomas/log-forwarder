@@ -18,6 +18,12 @@ Examples:
 
 **Fix:** Read the error message, correct YAML, restart.
 
+### Corrupt watermark file
+
+The startup error mentions `watermark file ... is corrupt or unreadable` and suggests recovery steps.
+
+**Fix:** Restart once with `--reset-watermarks`, or set `watch.state.reset_on_corrupt: true` in config. The corrupt file is archived as `{path}.corrupt.{timestamp}` and tailing starts from the beginning (re-ships already-processed lines). Alternatively, rename or delete the watermark file manually.
+
 ## No logs appearing at the sink
 
 | Check | Action |

@@ -69,6 +69,17 @@ Delete the entire watermark file (or move it aside), then restart. Every watched
 
 **Warning:** Re-publishing can **duplicate** data in Kafka or your ingest pipeline. Coordinate with downstream consumers.
 
+## Corrupt watermark file
+
+If the watermark file exists but contains invalid JSON (disk error, partial write, manual edit mistake), the forwarder **refuses to start** and logs an actionable error with the file path.
+
+**Recovery options:**
+
+1. **Archive and start fresh** — restart with `--reset-watermarks` or set `watch.state.reset_on_corrupt: true`. The corrupt file is renamed to `{path}.corrupt.{timestamp}` and a new empty store is created. A warning log records the backup path.
+2. **Manual** — rename or remove the corrupt file yourself, then restart (same effect as a missing watermark file: tail from the beginning).
+
+After recovery, tailing resumes from offset `0` for all watched files — expect **at-least-once** re-delivery of already-shipped lines. Inspect the `.corrupt.*` backup if you need to salvage offsets.
+
 ## Production tips
 
 - Use an **absolute path** for `watch.state.path`
