@@ -72,8 +72,7 @@ metrics:
   port: 10001
   path: /metrics
 
-# Register this instance with log-forwarder-atc after startup.
+# Register this instance with log-forwarder-atc after startup (PUT/DELETE).
 atc:
   enabled: true
-  host: localhost
-  port: 8090
+  url: http://localhost:8090/api/instances

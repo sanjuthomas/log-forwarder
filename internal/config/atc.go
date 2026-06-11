@@ -10,44 +10,22 @@ import (
 	"time"
 )
 
-const (
-	defaultATCHost = "localhost"
-	defaultATCPort = 8090
-)
+const defaultATCEndpoint = "http://localhost:8090/api/instances"
 
 // ATCConfig controls registration with the log-forwarder-atc controller.
 type ATCConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	URL     string `yaml:"url"`
-	Host    string `yaml:"host"`
-	Port    int    `yaml:"port"`
 	Timeout string `yaml:"timeout"`
 }
 
-// BaseURL returns the ATC base URL without a trailing slash.
-// When url is set, it is used as-is. Otherwise host and port are combined
-// (defaults: localhost:8090).
-func (c ATCConfig) BaseURL() string {
-	if raw := strings.TrimSpace(c.URL); raw != "" {
-		return strings.TrimRight(raw, "/")
+// EndpointURL returns the full PUT/DELETE registration endpoint.
+func (c ATCConfig) EndpointURL() string {
+	raw := strings.TrimSpace(c.URL)
+	if raw == "" {
+		return defaultATCEndpoint
 	}
-
-	host := strings.TrimSpace(c.Host)
-	if host == "" {
-		host = defaultATCHost
-	}
-
-	port := c.Port
-	if port == 0 {
-		port = defaultATCPort
-	}
-
-	return fmt.Sprintf("http://%s:%d", host, port)
-}
-
-// InstancesURL returns the full instances registration endpoint.
-func (c ATCConfig) InstancesURL() string {
-	return c.BaseURL() + "/api/instances"
+	return strings.TrimRight(raw, "/")
 }
 
 func (c ATCConfig) TimeoutDuration() time.Duration {
@@ -65,7 +43,7 @@ func (c *Config) validateATC() error {
 	if !c.ATC.Enabled {
 		return nil
 	}
-	parsed, err := url.Parse(c.ATC.BaseURL())
+	parsed, err := url.Parse(c.ATC.EndpointURL())
 	if err != nil {
 		return fmt.Errorf("atc.url: %w", err)
 	}
@@ -75,8 +53,8 @@ func (c *Config) validateATC() error {
 	if parsed.Host == "" {
 		return fmt.Errorf("atc.url must include a host")
 	}
-	if c.ATC.Port < 0 || c.ATC.Port > 65535 {
-		return fmt.Errorf("atc.port must be between 0 and 65535")
+	if parsed.Path == "" {
+		return fmt.Errorf("atc.url must include a path")
 	}
 	if c.ATC.Timeout != "" {
 		if _, err := time.ParseDuration(c.ATC.Timeout); err != nil {

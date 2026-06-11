@@ -36,7 +36,7 @@ func NewClient(cfg config.ATCConfig) *Client {
 		return nil
 	}
 	return &Client{
-		instancesURL: cfg.InstancesURL(),
+		instancesURL: cfg.EndpointURL(),
 		httpClient: &http.Client{
 			Timeout: cfg.TimeoutDuration(),
 		},

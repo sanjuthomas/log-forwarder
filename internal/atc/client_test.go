@@ -67,7 +67,7 @@ func TestRegisterAndDeregister(t *testing.T) {
 
 	client := atc.NewClient(config.ATCConfig{
 		Enabled: true,
-		URL:     server.URL,
+		URL:     server.URL + "/api/instances",
 		Timeout: "2s",
 	})
 	if client == nil {
@@ -132,7 +132,7 @@ func TestRegisterNon2xx(t *testing.T) {
 
 	client := atc.NewClient(config.ATCConfig{
 		Enabled: true,
-		URL:     server.URL,
+		URL:     server.URL + "/api/instances",
 	})
 
 	err := client.Register(context.Background(), atc.Instance{Hostname: "host-a", Port: 8080, ProcessID: 1, Timestamp: time.Now().UTC().Format(time.RFC3339Nano)})

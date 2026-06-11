@@ -222,7 +222,7 @@ func main() {
 		regCtx, regCancel := context.WithTimeout(context.Background(), cfg.ATC.TimeoutDuration())
 		regInstance := atcInstance
 		regInstance.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
-		logger.Info("atc registration status", "status", "registering", "url", cfg.ATC.InstancesURL(), "hostname", regInstance.Hostname, "port", regInstance.Port, "process_id", regInstance.ProcessID)
+		logger.Info("atc registration status", "status", "registering", "url", cfg.ATC.EndpointURL(), "hostname", regInstance.Hostname, "port", regInstance.Port, "process_id", regInstance.ProcessID)
 		err := atcClient.Register(regCtx, regInstance)
 		logATCRegistrationStatus(logger, cfg, err, regInstance)
 		regCancel()
@@ -246,7 +246,7 @@ func logATCRegistrationStatus(logger *slog.Logger, cfg *config.Config, err error
 	}
 	attrs := []any{
 		"status", "registered",
-		"url", cfg.ATC.InstancesURL(),
+		"url", cfg.ATC.EndpointURL(),
 		"hostname", inst.Hostname,
 		"port", inst.Port,
 		"process_id", inst.ProcessID,
@@ -264,7 +264,7 @@ func logATCRegistrationStatus(logger *slog.Logger, cfg *config.Config, err error
 func logATCDeregistrationStatus(logger *slog.Logger, cfg *config.Config, err error, inst atc.Instance) {
 	attrs := []any{
 		"status", "deregistered",
-		"url", cfg.ATC.InstancesURL(),
+		"url", cfg.ATC.EndpointURL(),
 		"hostname", inst.Hostname,
 		"port", inst.Port,
 		"process_id", inst.ProcessID,
