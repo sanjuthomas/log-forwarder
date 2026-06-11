@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -140,11 +141,11 @@ func TestStorePeriodicFlushSurfacesError(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
 
-	var flushErrors int
+	var flushErrors atomic.Int32
 	store, err := NewStore(path, Options{
 		FlushInterval: 20 * time.Millisecond,
 		OnPeriodicFlushError: func(error) {
-			flushErrors++
+			flushErrors.Add(1)
 		},
 	})
 	if err != nil {
@@ -161,7 +162,7 @@ func TestStorePeriodicFlushSurfacesError(t *testing.T) {
 
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
-		if flushErrors > 0 {
+		if flushErrors.Load() > 0 {
 			return
 		}
 		time.Sleep(5 * time.Millisecond)

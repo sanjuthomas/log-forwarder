@@ -26,7 +26,9 @@ type Options struct {
 
 // SetOnPeriodicFlushError registers a callback for interval flush failures.
 func (s *Store) SetOnPeriodicFlushError(fn func(error)) {
+	s.mu.Lock()
 	s.onPeriodicFlushError = fn
+	s.mu.Unlock()
 }
 
 type fileState struct {
@@ -117,8 +119,11 @@ func (s *Store) RunPeriodicFlush(ctx context.Context) {
 			return
 		case <-ticker.C:
 			if err := s.Flush(); err != nil {
-				if s.onPeriodicFlushError != nil {
-					s.onPeriodicFlushError(err)
+				s.mu.Lock()
+				onError := s.onPeriodicFlushError
+				s.mu.Unlock()
+				if onError != nil {
+					onError(err)
 				}
 				continue
 			}
