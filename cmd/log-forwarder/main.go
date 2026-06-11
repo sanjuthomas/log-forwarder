@@ -103,6 +103,7 @@ func main() {
 			defer deregCancel()
 			deregInstance := atcInstance
 			deregInstance.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
+			logger.Info("atc registration status", "status", "deregistering", "url", cfg.ATC.EndpointURL(), "hostname", deregInstance.Hostname, "port", deregInstance.Port, "process_id", deregInstance.ProcessID)
 			if err := atcClient.Deregister(deregCtx, deregInstance); err != nil {
 				logATCDeregistrationStatus(logger, cfg, err, deregInstance)
 			} else {
@@ -110,14 +111,11 @@ func main() {
 			}
 		})
 	}
-	shutdown := func() {
-		deregisterFromATC()
+	defer deregisterFromATC()
+
+	cancelRunners := func() {
 		runCancel()
 	}
-	go func() {
-		<-signalCtx.Done()
-		shutdown()
-	}()
 
 	lines := make(chan watcher.LineEvent, cfg.Pipeline.BufferSize)
 
@@ -230,9 +228,26 @@ func main() {
 		logATCRegistrationStatus(logger, cfg, nil, atcInstance)
 	}
 
-	if err := runner.Wait(errCh, shutdown); err != nil {
-		logger.Error("forwarder stopped", "error", err)
-		os.Exit(1)
+	runnerDone := make(chan error, 1)
+	go func() {
+		runnerDone <- runner.Wait(errCh, cancelRunners)
+	}()
+
+	select {
+	case err := <-runnerDone:
+		deregisterFromATC()
+		if err != nil {
+			logger.Error("forwarder stopped", "error", err)
+			os.Exit(1)
+		}
+	case <-signalCtx.Done():
+		logger.Info("shutdown signal received")
+		deregisterFromATC()
+		cancelRunners()
+		if err := <-runnerDone; err != nil {
+			logger.Error("forwarder stopped", "error", err)
+			os.Exit(1)
+		}
 	}
 
 	close(lines)
