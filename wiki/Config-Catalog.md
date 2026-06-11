@@ -37,6 +37,7 @@ Config keys do **not** encode units in the name. Use this table when a value's u
 | `watch.state.path` | Watermark file — stores per-file byte offset and inode for **this process** | file path | `.log-forwarder/watermarks.json` | Always set explicitly in production; one file per forwarder process. See [[Watermarks and Restarts]] |
 | `watch.state.flush_interval` | How often in-memory watermarks are written to disk | duration | `1s` | `0` = persist after every line (higher I/O, smaller crash window). Raise to reduce disk writes under heavy load |
 | `watch.state.flush_every` | Persist watermarks after this many in-memory updates | count | disabled | Combine with `flush_interval` for count-based flush; useful to cap persist frequency at high line rates |
+| `watch.state.reset_on_corrupt` | Archive a corrupt watermark file on startup and start fresh | bool | `false` | Set `true` (or use `--reset-watermarks`) when the JSON is unreadable; file is renamed to `{path}.corrupt.{timestamp}`. See [[Watermarks and Restarts#Corrupt watermark file]] |
 
 **Rotation:** rotation is detected by **inode change** only. `copytruncate` logrotate is **not supported** — use rename/create rotation. See [[Watermarks and Restarts]].
 

@@ -98,6 +98,12 @@ func main() {
 		logger.Error("load watermarks", "path", cfg.StatePath(), "error", err)
 		os.Exit(1)
 	}
+	if backup := watermarks.CorruptBackupPath(); backup != "" {
+		logger.Warn("archived corrupt watermark file and started fresh",
+			"path", cfg.StatePath(),
+			"backup", backup,
+		)
+	}
 	flushCtx, flushCancel := context.WithCancel(context.Background())
 	if wmOpts.FlushInterval > 0 {
 		statePath := cfg.StatePath()
@@ -158,7 +164,8 @@ func main() {
 func watermarkOptions(cfg *config.Config) state.Options {
 	flushInterval, flushEvery := cfg.Watch.State.PersistOptions()
 	return state.Options{
-		FlushInterval: flushInterval,
-		FlushEvery:    flushEvery,
+		FlushInterval:  flushInterval,
+		FlushEvery:     flushEvery,
+		ResetOnCorrupt: cfg.Watch.State.ResetOnCorrupt,
 	}
 }

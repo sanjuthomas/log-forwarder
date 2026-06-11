@@ -21,6 +21,7 @@ import (
 
 func main() {
 	configPath := flag.String("config", "", "path to YAML config file (optional)")
+	resetWatermarks := flag.Bool("reset-watermarks", false, "archive a corrupt watermark file and start fresh")
 	flag.Parse()
 
 	cfg, err := loadConfig(*configPath)
@@ -36,11 +37,17 @@ func main() {
 	}
 	defer logCloser.Close()
 
-	wmOpts := watermarkOptions(cfg)
+	wmOpts := watermarkOptions(cfg, *resetWatermarks)
 	watermarks, err := state.NewStore(cfg.StatePath(), wmOpts)
 	if err != nil {
 		logger.Error("load watermarks", "path", cfg.StatePath(), "error", err)
 		os.Exit(1)
+	}
+	if backup := watermarks.CorruptBackupPath(); backup != "" {
+		logger.Warn("archived corrupt watermark file and started fresh",
+			"path", cfg.StatePath(),
+			"backup", backup,
+		)
 	}
 	flushCtx, flushCancel := context.WithCancel(context.Background())
 	defer func() {
@@ -240,11 +247,12 @@ func loadConfig(path string) (*config.Config, error) {
 	return config.Load(path)
 }
 
-func watermarkOptions(cfg *config.Config) state.Options {
+func watermarkOptions(cfg *config.Config, resetWatermarks bool) state.Options {
 	flushInterval, flushEvery := cfg.Watch.State.PersistOptions()
 	return state.Options{
-		FlushInterval: flushInterval,
-		FlushEvery:    flushEvery,
+		FlushInterval:  flushInterval,
+		FlushEvery:     flushEvery,
+		ResetOnCorrupt: cfg.Watch.State.ResetOnCorrupt || resetWatermarks,
 	}
 }
 
