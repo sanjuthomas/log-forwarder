@@ -185,6 +185,8 @@ Supported SASL mechanisms: `PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `OAUTHBEAR
 
 **Example configs for every Kafka security mode:** [`examples/kafka/`](https://github.com/sanjuthomas/log-forwarder/blob/main/examples/kafka/)
 
+**Delivery semantics:** The sink uses leader ack only (`RequireOne`), synchronous writes (`Async: false`), and no idempotent producer. Combined with debounced watermark persistence (`watch.state.flush_interval`, default `1s`), delivery is **at-least-once** with a possible duplicate window after crash or `kill -9` if Kafka acked records before the watermark was flushed. Consumers must dedupe. See [[Choosing a Sink#Kafka delivery semantics]].
+
 ### File sink
 
 Appends one JSON record per line (JSONL) to a local file. See [`configs/example-file.yaml`](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-file.yaml).
@@ -497,6 +499,8 @@ This differs from filter/transform drops, which are explicit forwarding decision
 **Metrics:** `log_forwarder_lines_read` still increments for dropped lines, so a gap between `lines_read` and `lines_published` can be misdiagnosed as filter drops or transform skips. Alert separately on `rate(log_forwarder_pipeline_buffer_dropped[5m]) > 0` (see [[Monitoring#What-to-alert-on|What to alert on]]).
 
 If sustained overload fills the buffer, prefer scaling the sink, increasing `buffer_size`, tuning publish batching, or fixing publish latency — not enabling `drop` — unless you explicitly accept gaps in forwarded logs.
+
+**Sustained backpressure with `drop`:** While overload continues, new lines keep being discarded as they are read. Restart does not recover them and does not pause tailing — the forwarder may immediately resume dropping if the buffer is still full. Only `log_forwarder_pipeline_buffer_dropped` and a startup warning surface this mode.
 
 ## `metrics`
 

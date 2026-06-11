@@ -40,6 +40,18 @@ Enable metrics and check:
 - `log_forwarder_lines_read` increasing
 - `log_forwarder_lines_published` vs `log_forwarder_lines_skipped`
 
+## Permanent log loss from `pipeline.on_full: drop`
+
+Symptoms:
+
+- `rate(log_forwarder_pipeline_buffer_dropped[5m]) > 0`
+- `log_forwarder_lines_read` increases but `log_forwarder_lines_published` lags or stalls
+- Gaps in the sink with no publish-failure alerts
+
+**Cause:** With `on_full: drop`, the watcher reads each line and advances its in-memory file offset **before** enqueueing. If the pipeline buffer is full, the line is discarded and the watermark is **not** updated. Restart resumes from the last processed watermark — dropped bytes are skipped forever. Under sustained backpressure, the same drop loop can continue indefinitely.
+
+**Fix:** Set `pipeline.on_full: block` (default), increase `buffer_size`, fix publish latency, or scale the sink. Do not use `drop` expecting backpressure relief without accepting permanent loss. See [[Configuration-Reference#pipelineon_full-block-vs-drop]].
+
 ## Duplicate records in Kafka / downstream
 
 Usually caused by:
@@ -47,8 +59,9 @@ Usually caused by:
 - Deleting watermarks and re-reading from the beginning
 - Running **two processes** with the **same** watermark file
 - Log rotation with unexpected inode behavior (rare)
+- **Crash or `kill -9` after Kafka ack but before watermark flush** — the built-in Kafka sink uses leader ack only (`RequireOne`), synchronous writes, and no idempotent producer keys. Watermarks are debounced (`watch.state.flush_interval`, default `1s`). A restart can re-publish the last flush window of records. See [[Choosing a Sink#Kafka delivery semantics]].
 
-**Fix:** One watermark file per process; avoid resetting watermarks unless you intend to re-ship.
+**Fix:** One watermark file per process; avoid resetting watermarks unless you intend to re-ship. Design consumers for **at-least-once** delivery (dedupe keys, idempotent sinks). Tighten `watch.state.flush_interval` (or set `0`) to shrink the duplicate window at the cost of more disk I/O — this does not provide exactly-once.
 
 ## Spring Boot stack trace split across many records
 

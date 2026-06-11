@@ -67,6 +67,21 @@ Kafka down after startup:
     _retries rise, watermark does not advance for stuck records.
   - Bring Kafka back -> publishing should resume; no duplicate lines for already-watermarked offsets.
 
+Kafka at-least-once / duplicate window (sink.type: kafka):
+
+  The built-in Kafka sink acks from the partition leader only (RequireOne), writes synchronously,
+  and does not use an idempotent producer. Watermarks flush on a schedule (watch.state.flush_interval,
+  default 1s). After crash or kill -9, restart may re-publish records from the last flush window.
+
+  1. Set watch.state.flush_interval: 5s (widen window for the test).
+  2. Sustained append (~10 lines/sec) while consuming the Kafka topic.
+  3. kill -9 the forwarder mid-stream.
+  4. Restart -> expect at-most a few seconds of duplicate records at the consumer, not a full
+     re-ship from offset 0.
+  5. Repeat with flush_interval: 0 -> duplicate window should shrink (more disk I/O).
+
+  Consumers must dedupe; exactly-once is not provided.
+
 HTTP sink:
 
   - Use example-spring-boot-http-noauth.yaml; stop the ingest service.
@@ -107,8 +122,11 @@ D. Chaos / recovery
 
 Scenario                                    What to verify
 --------                                    ----------------
-kill -9 forwarder mid-publish               Restart resumes from watermark; at-most-once vs
-                                            at-least-once behavior at boundary
+kill -9 forwarder mid-publish               Restart resumes from watermark; Kafka sink may
+                                            re-publish last flush window (at-least-once)
+on_full: drop under sustained load            log_forwarder_pipeline_buffer_dropped rises;
+                                            dropped bytes never watermarked; restart does not
+                                            replay them — permanent gaps
 Network partition to sink                   Retries, no silent data loss without alert
 Two forwarders, same watermark file         Bad — document don't do this
 Two forwarders, different watermarks, same logs   OK for fan-out to two sinks

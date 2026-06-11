@@ -119,6 +119,8 @@ watch:
 
 **Persistence:** Watermark updates are kept in memory on every processed line and written to disk on a schedule (`flush_interval`, default `1s`) or after `flush_every` updates when set. A final flush runs on graceful shutdown (`SIGINT` / `SIGTERM`). Set `flush_interval: 0` to persist after every line (previous behavior, higher disk I/O). On crash or `kill -9`, the on-disk watermark may lag by up to one flush window; already-published lines may be sent again after restart (**at-least-once**).
 
+**Kafka duplicate window:** With `sink.type: kafka`, the forwarder may ack records to the broker before the watermark file catches up. The maximum duplicate replay after crash is roughly one `flush_interval` window (plus any lines processed since the last flush). Lower `flush_interval` or set it to `0` to shrink that window. This does not enable exactly-once — see [[Choosing a Sink#Kafka delivery semantics]].
+
 Use an absolute path in production so the file location does not depend on where the service is started from. The forwarder logs the resolved path at startup (`state_path` in the `log forwarder started` message).
 
 **File format** — JSON mapping each tailed file path to a byte offset and inode:
