@@ -434,6 +434,127 @@ func TestSendLineEventDrop(t *testing.T) {
 	}
 }
 
+func TestWatchPathsDeduplicatesSources(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	w := newTestWatcher(t, make(chan LineEvent), nil, config.WatchConfig{
+		Sources: []config.WatchSource{
+			{Path: dir, Patterns: []string{"*.log"}},
+			{Path: dir, Patterns: []string{"*.out"}},
+		},
+	})
+
+	paths, err := w.watchPaths()
+	if err != nil {
+		t.Fatalf("watchPaths() error = %v", err)
+	}
+	if len(paths) != 1 {
+		t.Fatalf("len(paths) = %d, want 1", len(paths))
+	}
+}
+
+func TestRunCancelClosesTailedFiles(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "app.log")
+	if err := os.WriteFile(logPath, []byte("line\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	lines := make(chan LineEvent, 4)
+	w := newTestWatcher(t, lines, nil, config.WatchConfig{
+		Paths:    []string{dir},
+		Patterns: []string{"*.log"},
+		Poll:     "50ms",
+	})
+
+	done := make(chan error, 1)
+	go func() {
+		done <- w.Run(ctx)
+	}()
+
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-done:
+		if err == nil || err != context.Canceled {
+			t.Fatalf("Run() error = %v, want context.Canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for Run to stop")
+	}
+
+	if w.FileCount() != 0 {
+		t.Fatalf("FileCount() = %d, want 0 after shutdown", w.FileCount())
+	}
+}
+
+func TestReadNewLinesStopsOnShutdownWhileBlocked(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "app.log")
+	content := "line-one\nline-two\n"
+	if err := os.WriteFile(logPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	lines := make(chan LineEvent, 1)
+	lines <- LineEvent{Path: logPath, Line: []byte("filled")}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	w := &Watcher{
+		onFull:  "block",
+		lines:   lines,
+		runCtx:  ctx,
+		metrics: &metrics.Collector{},
+		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	state := openFileState(t, logPath)
+
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		cancel()
+	}()
+
+	if err := w.readNewLines(state); err != nil {
+		t.Fatalf("readNewLines() error = %v", err)
+	}
+	if len(drainLineEvents(lines)) != 1 {
+		t.Fatalf("expected only pre-filled event while blocked")
+	}
+}
+
+func TestCloseAll(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "app.log")
+	if err := os.WriteFile(logPath, []byte("line\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	lines := make(chan LineEvent, 4)
+	w := newTestWatcher(t, lines, nil, config.WatchConfig{})
+	if err := w.tailFile(logPath); err != nil {
+		t.Fatalf("tailFile() error = %v", err)
+	}
+	if w.FileCount() != 1 {
+		t.Fatalf("FileCount() = %d, want 1", w.FileCount())
+	}
+
+	w.closeAll()
+	if w.FileCount() != 0 {
+		t.Fatalf("FileCount() = %d, want 0 after closeAll", w.FileCount())
+	}
+}
+
 func TestNewDefaultsOnFullToBlock(t *testing.T) {
 	t.Parallel()
 
