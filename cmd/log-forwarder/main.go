@@ -10,9 +10,11 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
+	"github.com/sanjuthomas/log-forwarder/internal/atc"
 	"github.com/sanjuthomas/log-forwarder/internal/config"
 	applogging "github.com/sanjuthomas/log-forwarder/internal/logging"
 	"github.com/sanjuthomas/log-forwarder/internal/metrics"
@@ -86,8 +88,36 @@ func main() {
 	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	runCtx, runCancel := context.WithCancel(signalCtx)
+	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
+
+	atcClient := atc.NewClient(cfg.ATC)
+	atcInstance := atc.NewInstance(cfg)
+	var deregisterOnce sync.Once
+	deregisterFromATC := func() {
+		deregisterOnce.Do(func() {
+			if atcClient == nil {
+				return
+			}
+			deregCtx, deregCancel := context.WithTimeout(context.Background(), cfg.ATC.TimeoutDuration())
+			defer deregCancel()
+			deregInstance := atcInstance
+			deregInstance.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
+			if err := atcClient.Deregister(deregCtx, deregInstance); err != nil {
+				logger.Warn("atc deregister failed", "url", cfg.ATC.InstancesURL(), "error", err)
+			} else {
+				logger.Info("deregistered from atc", "url", cfg.ATC.InstancesURL())
+			}
+		})
+	}
+	shutdown := func() {
+		deregisterFromATC()
+		runCancel()
+	}
+	go func() {
+		<-signalCtx.Done()
+		shutdown()
+	}()
 
 	lines := make(chan watcher.LineEvent, cfg.Pipeline.BufferSize)
 
@@ -188,7 +218,19 @@ func main() {
 	}
 	logger.Info("log forwarder started", startAttrs...)
 
-	if err := runner.Wait(errCh, runCancel); err != nil {
+	if atcClient != nil {
+		regCtx, regCancel := context.WithTimeout(context.Background(), cfg.ATC.TimeoutDuration())
+		regInstance := atcInstance
+		regInstance.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
+		if err := atcClient.Register(regCtx, regInstance); err != nil {
+			logger.Warn("atc register failed", "url", cfg.ATC.InstancesURL(), "error", err)
+		} else {
+			logger.Info("registered with atc", "url", cfg.ATC.InstancesURL(), "hostname", regInstance.Hostname, "port", regInstance.Port, "process_id", regInstance.ProcessID)
+		}
+		regCancel()
+	}
+
+	if err := runner.Wait(errCh, shutdown); err != nil {
 		logger.Error("forwarder stopped", "error", err)
 		os.Exit(1)
 	}
