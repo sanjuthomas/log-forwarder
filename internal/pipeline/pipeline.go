@@ -120,7 +120,7 @@ func (p *Pipeline) Run(ctx context.Context, lines <-chan watcher.LineEvent) erro
 			return p.shutdown(ctx)
 		case <-flushTick:
 			if err := p.flushPublishBuffer(ctx, "timer"); err != nil {
-				return err
+				return p.exitErr(ctx, err)
 			}
 		case event, ok := <-lines:
 			if !ok {
@@ -128,15 +128,22 @@ func (p *Pipeline) Run(ctx context.Context, lines <-chan watcher.LineEvent) erro
 			}
 			records, err := p.parser.Feed(event)
 			if err != nil {
-				return err
+				return p.exitErr(ctx, err)
 			}
 			for _, record := range records {
 				if err := p.process(ctx, record); err != nil {
-					return err
+					return p.exitErr(ctx, err)
 				}
 			}
 		}
 	}
+}
+
+func (p *Pipeline) exitErr(ctx context.Context, runErr error) error {
+	if shutErr := p.shutdown(ctx); shutErr != nil && runErr == nil {
+		return shutErr
+	}
+	return runErr
 }
 
 func (p *Pipeline) shutdown(ctx context.Context) error {
