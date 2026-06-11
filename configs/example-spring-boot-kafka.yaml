@@ -68,7 +68,7 @@ pipeline:
 
 metrics:
   enabled: true
-  host: 127.0.0.1
+  host: 0.0.0.0  # listen on all interfaces so /health is reachable by hostname (required for ATC)
   port: 10001
   path: /metrics
 
