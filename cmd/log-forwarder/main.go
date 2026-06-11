@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"log/slog"
 	"os"
@@ -14,6 +13,7 @@ import (
 	applogging "github.com/sanjuthomas/log-forwarder/internal/logging"
 	"github.com/sanjuthomas/log-forwarder/internal/metrics"
 	"github.com/sanjuthomas/log-forwarder/internal/pipeline"
+	"github.com/sanjuthomas/log-forwarder/internal/runner"
 	"github.com/sanjuthomas/log-forwarder/internal/sink"
 	"github.com/sanjuthomas/log-forwarder/internal/state"
 	"github.com/sanjuthomas/log-forwarder/internal/watcher"
@@ -72,8 +72,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	runCtx, runCancel := context.WithCancel(signalCtx)
+	defer runCancel()
 
 	lines := make(chan watcher.LineEvent, cfg.Pipeline.BufferSize)
 
@@ -145,11 +148,11 @@ func main() {
 	forwarderWatcher = watcher.New(cfg, lines, watermarks, collector, logger)
 
 	errCh := make(chan error, 2)
-	go func() { errCh <- forwarderWatcher.Run(ctx) }()
-	go func() { errCh <- pipe.Run(ctx, lines) }()
+	go func() { errCh <- forwarderWatcher.Run(runCtx) }()
+	go func() { errCh <- pipe.Run(runCtx, lines) }()
 
 	if interval := cfg.Logging.StatusIntervalDuration(); interval > 0 {
-		go logStatus(ctx, logger, forwarderWatcher, interval)
+		go logStatus(runCtx, logger, forwarderWatcher, interval)
 	}
 
 	startAttrs := []any{
@@ -167,25 +170,13 @@ func main() {
 	}
 	logger.Info("log forwarder started", startAttrs...)
 
-	if err := waitForRunners(errCh); err != nil {
+	if err := runner.Wait(errCh, runCancel); err != nil {
 		logger.Error("forwarder stopped", "error", err)
 		os.Exit(1)
 	}
 
 	close(lines)
 	logger.Info("log forwarder stopped")
-}
-
-func waitForRunners(errCh <-chan error) error {
-	var first error
-	for i := 0; i < 2; i++ {
-		if err := <-errCh; err != nil && !errors.Is(err, context.Canceled) {
-			if first == nil {
-				first = err
-			}
-		}
-	}
-	return first
 }
 
 func checkSinkAtStartup(s sink.Sink, cfg *config.Config) error {

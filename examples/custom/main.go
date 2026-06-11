@@ -7,7 +7,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"log/slog"
 	"os"
@@ -18,6 +17,7 @@ import (
 	"github.com/sanjuthomas/log-forwarder/internal/config"
 	"github.com/sanjuthomas/log-forwarder/internal/enrich"
 	"github.com/sanjuthomas/log-forwarder/internal/pipeline"
+	"github.com/sanjuthomas/log-forwarder/internal/runner"
 	"github.com/sanjuthomas/log-forwarder/internal/sink"
 	"github.com/sanjuthomas/log-forwarder/internal/state"
 	"github.com/sanjuthomas/log-forwarder/internal/transform"
@@ -84,8 +84,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	runCtx, runCancel := context.WithCancel(signalCtx)
+	defer runCancel()
 
 	lines := make(chan watcher.LineEvent, cfg.Pipeline.BufferSize)
 
@@ -134,27 +137,15 @@ func main() {
 
 	w := watcher.New(cfg, lines, watermarks, nil, logger)
 	errCh := make(chan error, 2)
-	go func() { errCh <- w.Run(ctx) }()
-	go func() { errCh <- pipe.Run(ctx, lines) }()
+	go func() { errCh <- w.Run(runCtx) }()
+	go func() { errCh <- pipe.Run(runCtx, lines) }()
 
 	logger.Info("custom log forwarder started")
-	if err := waitForRunners(errCh); err != nil {
+	if err := runner.Wait(errCh, runCancel); err != nil {
 		logger.Error("forwarder stopped", "error", err)
 		os.Exit(1)
 	}
 	close(lines)
-}
-
-func waitForRunners(errCh <-chan error) error {
-	var first error
-	for i := 0; i < 2; i++ {
-		if err := <-errCh; err != nil && !errors.Is(err, context.Canceled) {
-			if first == nil {
-				first = err
-			}
-		}
-	}
-	return first
 }
 
 func watermarkOptions(cfg *config.Config) state.Options {
