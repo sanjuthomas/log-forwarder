@@ -1,4 +1,12 @@
-# log-forwarder
+<p align="center">
+  <img src="assets/logo.svg" alt="log-forwarder" width="340">
+</p>
+
+<p align="center">
+  <a href="https://github.com/sanjuthomas/log-forwarder/actions/workflows/ci.yml"><img src="https://github.com/sanjuthomas/log-forwarder/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License"></a>
+  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white" alt="Go 1.22+"></a>
+</p>
 
 **log-forwarder** is a small, low-footprint alternative to Fluent Bit — written in Go, MIT-licensed, and built for teams that want a simple file → structured JSON → sink pipeline without a heavy agent.
 
