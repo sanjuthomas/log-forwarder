@@ -1,0 +1,66 @@
+name: Bug report
+description: Report something that is broken or behaves unexpectedly
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please redact secrets (Kafka passwords, tokens, TLS keys) from configs and log samples.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the bug and what you expected instead.
+      placeholder: The forwarder stops tailing after log rotation...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Config snippet, commands, and minimal log input if possible.
+      placeholder: |
+        1. Use configs/example-spring-boot-kafka.yaml with ...
+        2. Append lines to logs/app.log
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or metrics
+      description: Forwarder stderr, logging.file output, or metric values.
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Git tag, commit SHA, or Docker image tag (e.g. v0.3.0, main@abcd123)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sink
+    attributes:
+      label: Sink type
+      options:
+        - kafka
+        - file
+        - http-noauth
+        - custom
+        - not applicable / unknown
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, deployment (local, Docker, k8s), Go version if built from source
+      placeholder: macOS 14, Docker sanjuthomas/log-forwarder:v0.3.0
