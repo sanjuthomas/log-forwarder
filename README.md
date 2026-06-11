@@ -10,7 +10,9 @@
 
 **log-forwarder** is a small, low-footprint alternative to Fluent Bit — written in Go, MIT-licensed, and built for teams that want a simple file → structured JSON → sink pipeline without a heavy agent.
 
-It tails log files, transforms and enriches records, and ships them to Kafka, files, HTTP, or your own sink via a **custom binary**. Same operational ideas you expect (watermarks, rotation, dead letters, metrics), in a **~15 MB static binary** with an extension model that stays out of your way.
+Download the source, add your sink, and run. It tails log files, transforms and enriches records, and ships them to Kafka, files, HTTP, or your own integration via a **custom binary** — no fork required. Same operational ideas you expect (watermarks, rotation, dead letters, metrics), in a **~15 MB static binary**.
+
+**Small agent. Your sink. Your rules.**
 
 **Documentation:** [GitHub Wiki](https://github.com/sanjuthomas/log-forwarder/wiki) — install, configuration, sinks, watermarks, monitoring, deployment, and custom extensions.
 
