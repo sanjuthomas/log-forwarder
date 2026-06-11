@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/sanjuthomas/log-forwarder/wiki
+    about: Install, configuration, sinks, watermarks, monitoring, and deployment guides
+  - name: Ask a question
+    url: https://github.com/sanjuthomas/log-forwarder/discussions
+    about: General questions or ideas that are not yet a bug report or feature request

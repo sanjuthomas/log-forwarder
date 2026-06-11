@@ -1,0 +1,36 @@
+name: Documentation
+description: Report missing, incorrect, or unclear documentation
+title: "[Docs]: "
+labels:
+  - documentation
+body:
+  - type: textarea
+    id: location
+    attributes:
+      label: Where is the documentation?
+      description: Wiki page, README section, config example path, or comment in code.
+      placeholder: wiki/Watermarks-and-Restarts.md — corrupt watermark section
+    validations:
+      required: true
+
+  - type: textarea
+    id: issue
+    attributes:
+      label: What is wrong or missing?
+      description: Be specific about what readers would find confusing or incorrect.
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested fix
+      description: Optional — how you think it should read.
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to submit a PR for this
+          required: false

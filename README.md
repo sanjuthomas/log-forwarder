@@ -61,6 +61,14 @@ docker pull sanjuthomas/log-forwarder:latest
 
 See [Docker](https://github.com/sanjuthomas/log-forwarder/wiki/Docker) on the wiki for compose stacks and CI smoke tests.
 
+## Contributing
+
+Contributions are welcome — bug reports, documentation, tests, and code. See **[CONTRIBUTING.md](CONTRIBUTING.md)** for:
+
+- How to [open an issue](https://github.com/sanjuthomas/log-forwarder/issues/new/choose) (bug, feature, docs)
+- How to submit a pull request (branch workflow, tests, CI checks)
+- Coding guidelines and wiki sync notes
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
