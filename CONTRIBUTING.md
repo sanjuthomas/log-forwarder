@@ -102,9 +102,9 @@ Every PR to `main` must pass:
 | **build** | `go test ./...`, `go test -race ./...`, build main and custom example |
 | **kafka-smoke** | Kafka round-trip and dead-letter smoke scripts |
 
-At least **one approving review** is required before merge.
+**Approving reviews are not required** — maintainers can merge their own PRs once CI is green. External contributors still need a maintainer to merge (fork workflow). Direct pushes to `main` remain blocked; all changes go through a pull request.
 
-Address review feedback with new commits on the same branch; avoid force-pushing unless you need to rebase after `main` moves.
+Address review feedback with new commits on the same branch when offered; avoid force-pushing unless you need to rebase after `main` moves.
 
 ## Development notes
 
