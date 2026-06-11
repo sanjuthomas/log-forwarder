@@ -170,3 +170,78 @@ func TestCollectorStartUsesConfiguredAddress(t *testing.T) {
 		t.Fatalf("server.Shutdown() error = %v", err)
 	}
 }
+
+func TestCollectorRecordMethodsNoPanicWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	collector, shutdown, err := New(config.MetricsConfig{}, Snapshot{}, nil, nil)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(func() { _ = shutdown(context.Background()) })
+
+	ctx := context.Background()
+	collector.RecordLineSkipped(ctx)
+	collector.RecordLineFiltered(ctx)
+	collector.RecordTransformError(ctx)
+	collector.RecordTimestampParseFailure(ctx)
+	collector.RecordPublishTruncation(ctx)
+	collector.RecordDeadLetterBatch(ctx, 1)
+	collector.RecordPublishBatchFlush(ctx, "timer", "success", 3, 128)
+}
+
+func TestCollectorRecordMethodsWhenEnabled(t *testing.T) {
+	collector, shutdown, err := New(config.MetricsConfig{
+		Enabled: true,
+		Host:    "127.0.0.1",
+		Port:    9092,
+		Path:    "/metrics",
+	}, Snapshot{}, nil, nil)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(func() { _ = shutdown(context.Background()) })
+
+	ctx := context.Background()
+	collector.RecordLineSkipped(ctx)
+	collector.RecordLineFiltered(ctx)
+	collector.RecordTransformError(ctx)
+	collector.RecordTimestampParseFailure(ctx)
+	collector.RecordPublishTruncation(ctx)
+	collector.RecordDeadLetterBatch(ctx, 2)
+	collector.RecordPublishBatchFlush(ctx, "size", "success", 4, 256)
+
+	handler := collector.PrometheusHandler()
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		"log_forwarder_lines_skipped",
+		"log_forwarder_lines_filtered",
+		"log_forwarder_transform_errors",
+		"log_forwarder_timestamp_parse_failures",
+		"log_forwarder_publish_truncations",
+		"log_forwarder_publish_dead_letter_batches",
+		"log_forwarder_publish_batch_flushes",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("metrics body missing %q", want)
+		}
+	}
+}
+
+func TestPrometheusHandlerNilCollector(t *testing.T) {
+	t.Parallel()
+
+	var c *Collector
+	handler := c.PrometheusHandler()
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+}
+

@@ -4,7 +4,49 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
+
+func TestReadinessConfigHelpers(t *testing.T) {
+	t.Parallel()
+
+	cfg := ReadinessConfig{Path: "readyz", BufferThreshold: 0.5}
+	if cfg.ReadyPath() != "/readyz" {
+		t.Fatalf("ReadyPath() = %q, want /readyz", cfg.ReadyPath())
+	}
+	if cfg.BufferThresholdOrDefault() != 0.5 {
+		t.Fatalf("BufferThresholdOrDefault() = %v, want 0.5", cfg.BufferThresholdOrDefault())
+	}
+
+	defaultThreshold := ReadinessConfig{}.BufferThresholdOrDefault()
+	if defaultThreshold != 0.8 {
+		t.Fatalf("default threshold = %v, want 0.8", defaultThreshold)
+	}
+
+	disabled := false
+	sinkCheckCfg := ReadinessConfig{SinkCheck: &disabled}
+	if sinkCheckCfg.SinkCheckEnabled() {
+		t.Fatal("expected sink_check false when explicitly disabled")
+	}
+
+	fallback := 3 * time.Second
+	defaultCfg := ReadinessConfig{}
+	if got := defaultCfg.SinkCheckTimeoutDuration(fallback); got != fallback {
+		t.Fatalf("timeout = %v, want fallback %v", got, fallback)
+	}
+	timeoutCfg := ReadinessConfig{SinkCheckTimeout: "2s"}
+	if got := timeoutCfg.SinkCheckTimeoutDuration(fallback); got != 2*time.Second {
+		t.Fatalf("timeout = %v, want 2s", got)
+	}
+}
+
+func TestMetricsConfigDeadLettersPath(t *testing.T) {
+	t.Parallel()
+
+	if got := (MetricsConfig{}).DeadLettersPath(); got != "/deadletters" {
+		t.Fatalf("DeadLettersPath() = %q, want /deadletters", got)
+	}
+}
 
 func TestMetricsConfigDefaults(t *testing.T) {
 	t.Parallel()

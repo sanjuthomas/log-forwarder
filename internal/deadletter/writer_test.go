@@ -17,6 +17,41 @@ func TestValidateWritableCreatesAndProbesDirectory(t *testing.T) {
 	}
 }
 
+func TestWriteBatchRejectsEmptyBatch(t *testing.T) {
+	t.Parallel()
+
+	_, _, err := WriteBatch(t.TempDir(), nil, WriteInfo{})
+	if err == nil {
+		t.Fatal("expected error for empty batch")
+	}
+	if !strings.Contains(err.Error(), "empty batch") {
+		t.Fatalf("error = %q", err.Error())
+	}
+}
+
+func TestValidateWritableRejectsEmptyPath(t *testing.T) {
+	t.Parallel()
+
+	if err := ValidateWritable(""); err == nil {
+		t.Fatal("expected error for empty path")
+	}
+}
+
+func TestValidateWritableRejectsReadOnlyParent(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	readOnly := filepath.Join(dir, "readonly")
+	if err := os.Mkdir(readOnly, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(readOnly, 0o755) })
+
+	if err := ValidateWritable(filepath.Join(readOnly, "dlq")); err == nil {
+		t.Fatal("expected error when parent directory is not writable")
+	}
+}
+
 func TestWriteBatchCreatesJSONLFile(t *testing.T) {
 	dir := t.TempDir()
 	payloads := [][]byte{

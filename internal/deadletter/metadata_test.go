@@ -8,6 +8,74 @@ import (
 	"testing"
 )
 
+func TestListEntriesEmptyDir(t *testing.T) {
+	t.Parallel()
+
+	entries, err := ListEntries("")
+	if err != nil {
+		t.Fatalf("ListEntries(\"\") error = %v", err)
+	}
+	if entries != nil {
+		t.Fatalf("entries = %v, want nil", entries)
+	}
+}
+
+func TestListEntriesMissingDir(t *testing.T) {
+	t.Parallel()
+
+	entries, err := ListEntries(filepath.Join(t.TempDir(), "missing"))
+	if err != nil {
+		t.Fatalf("ListEntries() error = %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("len(entries) = %d, want 0", len(entries))
+	}
+}
+
+func TestListEntriesInfersMetadataWithoutSidecar(t *testing.T) {
+	dir := t.TempDir()
+	content := `{"line":1}` + "\n" + `{"line":2}` + "\n"
+	filename := "2026-01-01T00-00-00Z_abcd.jsonl"
+	if err := os.WriteFile(filepath.Join(dir, filename), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := ListEntries(dir)
+	if err != nil {
+		t.Fatalf("ListEntries() error = %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("len(entries) = %d, want 1", len(entries))
+	}
+	if entries[0].Filename != filename {
+		t.Fatalf("filename = %q, want %q", entries[0].Filename, filename)
+	}
+	if entries[0].EventCount != 2 {
+		t.Fatalf("event_count = %d, want 2", entries[0].EventCount)
+	}
+	if entries[0].FailureReason != "" {
+		t.Fatalf("failure_reason = %q, want empty when sidecar missing", entries[0].FailureReason)
+	}
+}
+
+func TestCountJSONLLinesEmptyFile(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "empty.jsonl")
+	if err := os.WriteFile(path, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	count, err := countJSONLLines(path)
+	if err != nil {
+		t.Fatalf("countJSONLLines() error = %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("count = %d, want 0", count)
+	}
+}
+
 func TestListEntriesReturnsMetadataFromSidecar(t *testing.T) {
 	dir := t.TempDir()
 	payloads := [][]byte{[]byte(`{"message":"secret-line"}`)}

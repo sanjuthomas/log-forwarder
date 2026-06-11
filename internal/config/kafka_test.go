@@ -1,6 +1,112 @@
 package config
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
+
+func TestKafkaConfigConnectTimeoutDuration(t *testing.T) {
+	t.Parallel()
+
+	cfg := KafkaConfig{}
+	if got := cfg.ConnectTimeoutDuration(); got != 10*time.Second {
+		t.Fatalf("ConnectTimeoutDuration() = %v, want 10s default", got)
+	}
+
+	cfg.ConnectTimeout = "5s"
+	if got := cfg.ConnectTimeoutDuration(); got != 5*time.Second {
+		t.Fatalf("ConnectTimeoutDuration() = %v, want 5s", got)
+	}
+
+	cfg.ConnectTimeout = "invalid"
+	if got := cfg.ConnectTimeoutDuration(); got != 10*time.Second {
+		t.Fatalf("ConnectTimeoutDuration() = %v, want 10s fallback", got)
+	}
+}
+
+func TestKafkaConfigValidateSASLPlainRequiresCredentials(t *testing.T) {
+	t.Parallel()
+
+	cfg := KafkaConfig{
+		Brokers: []string{"localhost:9092"},
+		Topic:   "logs",
+		Security: &KafkaSecurityConfig{
+			Protocol: KafkaProtocolSASLPlaintext,
+			SASL:     &KafkaSASLConfig{Mechanism: KafkaSASLPlain},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error when PLAIN credentials missing")
+	}
+}
+
+func TestKafkaConfigValidateSASLMechanismRequired(t *testing.T) {
+	t.Parallel()
+
+	cfg := KafkaConfig{
+		Brokers: []string{"localhost:9092"},
+		Topic:   "logs",
+		Security: &KafkaSecurityConfig{
+			Protocol: KafkaProtocolSASLPlaintext,
+			SASL:     &KafkaSASLConfig{},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error when sasl mechanism missing")
+	}
+}
+
+func TestKafkaConfigValidateTLSRequiresCertAndKeyPair(t *testing.T) {
+	t.Parallel()
+
+	cfg := KafkaConfig{
+		Brokers: []string{"localhost:9093"},
+		Topic:   "logs",
+		Security: &KafkaSecurityConfig{
+			Protocol: KafkaProtocolSSL,
+			TLS:      &KafkaTLSConfig{CertFile: "/tmp/client.crt"},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error when only cert_file is set")
+	}
+}
+
+func TestKafkaConfigValidateSASLSCRAMRequiresPassword(t *testing.T) {
+	t.Parallel()
+
+	cfg := KafkaConfig{
+		Brokers: []string{"localhost:9092"},
+		Topic:   "logs",
+		Security: &KafkaSecurityConfig{
+			Protocol: KafkaProtocolSASLPlaintext,
+			SASL: &KafkaSASLConfig{
+				Mechanism: KafkaSASLSCRAMSHA256,
+				Username:  "user",
+			},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error when SCRAM password missing")
+	}
+}
+
+func TestKafkaConfigValidateOAuthRequiresToken(t *testing.T) {
+	t.Parallel()
+
+	cfg := KafkaConfig{
+		Brokers: []string{"localhost:9092"},
+		Topic:   "logs",
+		Security: &KafkaSecurityConfig{
+			Protocol: KafkaProtocolSASLSSL,
+			TLS:      &KafkaTLSConfig{InsecureSkipVerify: true},
+			SASL:     &KafkaSASLConfig{Mechanism: KafkaSASLOAuthBearer},
+		},
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error when oauth token missing")
+	}
+}
 
 func TestKafkaConfigDefaultPlaintext(t *testing.T) {
 	t.Parallel()
