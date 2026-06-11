@@ -48,9 +48,6 @@ func (f *publishFlusher) enqueue(ctx context.Context, item pendingPublish) error
 			}
 			continue
 		}
-		if f.flushErr != nil {
-			return f.flushErr
-		}
 
 		maxBytes := f.maxBytes
 
@@ -80,9 +77,6 @@ func (f *publishFlusher) triggerFlush(ctx context.Context, reason string) error 
 
 	if f.p.Hibernating() {
 		return nil
-	}
-	if f.flushErr != nil {
-		return f.flushErr
 	}
 	if f.active.len() == 0 {
 		return nil
@@ -117,6 +111,7 @@ func (f *publishFlusher) syncFlush(ctx context.Context, reason string) error {
 			return nil
 		}
 
+		f.flushErr = nil
 		batch := f.active.drain()
 		f.flushRunning = true
 		f.flushDone = make(chan struct{})
@@ -146,6 +141,7 @@ func (f *publishFlusher) swapAndStartFlushLocked(ctx context.Context, reason str
 		return nil
 	}
 
+	f.flushErr = nil
 	batch := f.active.drain()
 	f.flushRunning = true
 	f.flushDone = make(chan struct{})
