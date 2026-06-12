@@ -144,7 +144,7 @@ Use an absolute path in production so the file location does not depend on where
 **How it works:**
 
 1. **First run** — no watermark file exists (or no entry for a file). The forwarder tails from the **beginning** of the file.
-2. **After each committed parser event** — the in-memory watermark for that source file is updated to the event's byte offset (for multiline records, the end of the last physical line in that event). Filtered and transform-skipped lines advance the watermark too; only publish failures stall it. With `parser.type: multiline`, buffered continuation lines do not commit until the next header line or graceful shutdown — see [[Watermarks-and-Restarts#Multiline-parser-and-watermarks|Multiline parser and watermarks]]. The watermark file on disk is updated on the flush schedule (see above).
+2. **After each committed parser event** — the in-memory watermark for that source file is updated to the event's byte offset (for multiline records, the end of the last physical line in that event). Filtered and transform-skipped lines advance the watermark too; only publish failures stall it. With `parser.type: multiline`, buffered continuation lines do not commit until the next header line, `parser.flush_interval` idle flush (default `100ms`), or graceful shutdown — see [[Watermarks-and-Restarts#Multiline-parser-and-watermarks|Multiline parser and watermarks]]. The watermark file on disk is updated on the flush schedule (see above).
 3. **Restart** — if the file's inode matches the stored value, tailing **resumes from `offset`**. The log line `resuming file from watermark` indicates this.
 4. **Log rotation** — if the path is reused but the **inode changed** (typical after `logrotate` with `create` or `rename`), the stored offset is ignored and the forwarder tails the new file from the **beginning**. The log line `tailing file from beginning` indicates this.
 
@@ -166,13 +166,13 @@ With `parser.type: multiline`, watermark updates are tied to **committed parser 
 |-------|----------------|
 | Header line | Starts a new buffer; the **previous** multiline record (if any) is committed and its watermark is set to the **last byte offset of that record** (the final line that belonged to it). |
 | Continuation lines | Appended to the buffer only. No publish and **no watermark update** yet. |
-| Trailing record | The last event in a file stays buffered until a new header line arrives or the process shuts down gracefully. |
+| Trailing record | The last event in a file stays buffered until a new header line arrives, `parser.flush_interval` elapses with no new lines (default `100ms`), or the process shuts down gracefully. |
 
 Implications for operators:
 
-- **Watermark can lag the watcher** — byte offsets in `watermarks.json` reflect the last *committed* multiline event, not necessarily the last line already read from the file. A long stack trace at the end of a log file may be tailed but unpublished until the next header line or shutdown.
-- **Last record on shutdown** — graceful stop flushes the parser buffer, publishes the trailing record, and updates the watermark. `kill -9` or crash may leave that final multiline event unpublished; on restart the forwarder resumes from the last committed offset and will re-read and re-publish those lines (**at-least-once**).
-- **Sidecar / Kubernetes** — if the forwarder restarts before a trailing multiline event is committed, either rely on graceful termination (preStop hook + `SIGTERM`) or ensure the application emits another header line so the buffered record is flushed. Integration tests often append a sentinel header line for this reason (see E2E-2 in [`docs/integration-test-cases.txt`](https://github.com/sanjuthomas/log-forwarder/blob/main/docs/integration-test-cases.txt)).
+- **Watermark can lag the watcher briefly** — byte offsets in `watermarks.json` reflect the last *committed* multiline event, not necessarily the last line already read from the file. With default `flush_interval`, the lag is at most ~100ms after the last line; set `flush_interval: 0` to hold the tail until the next header or shutdown.
+- **Last record on shutdown** — graceful stop flushes any remaining parser buffer, publishes the trailing record, and updates the watermark. `kill -9` or crash may leave a record unpublished for up to one idle-flush window; on restart the forwarder resumes from the last committed offset and will re-read and re-publish those lines (**at-least-once**).
+- **Sidecar / Kubernetes** — rely on graceful termination (preStop hook + `SIGTERM`) for any record not yet idle-flushed. With default `flush_interval`, trailing records usually commit within 100ms; integration tests may still append a sentinel header line (see E2E-2 in [`docs/integration-test-cases.txt`](https://github.com/sanjuthomas/log-forwarder/blob/main/docs/integration-test-cases.txt)).
 - **Line parser for strict per-line watermarks** — use `parser.type: line` when each physical line should commit and advance the watermark immediately (see E2E-3 in the integration test catalog).
 
 The `offset` stored for a committed multiline event is always the end offset of its **last physical line**, not an intermediate line within the stack trace.

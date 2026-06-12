@@ -62,9 +62,10 @@ For multiline (typical for Spring Boot errors):
 parser:
   type: multiline
   start_pattern: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}'
+  flush_interval: 100ms  # optional; default for multiline — publishes trailing record after quiet time
 ```
 
-A new event starts when a line matches `start_pattern`. Everything until the next match is joined with newlines and passed to transform as one blob.
+A new event starts when a line matches `start_pattern`. Everything until the next match is joined with newlines and passed to transform as one blob. The trailing record is also flushed after `flush_interval` with no new lines (default `100ms`).
 
 See [[Spring Boot Logs]] for a full example.
 

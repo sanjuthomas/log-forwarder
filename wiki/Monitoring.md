@@ -151,10 +151,10 @@ Other useful log lines:
 **Line accounting:** `lines_read` counts only bytes appended after the file size observed at tail open (or all lines when tailing from the beginning). On restart with a stale watermark, bytes that were already in the file but not yet persisted to disk are counted as `lines_replayed`, not `lines_read`. Together:
 
 ```
-lines_read + lines_replayed ≈ lines_published + lines_filtered + lines_skipped + pipeline_buffer_dropped + (lines waiting in publish batch)
+lines_read + lines_replayed ≈ lines_published + lines_filtered + lines_skipped + pipeline_buffer_dropped + (lines waiting in publish batch) + (lines waiting in multiline parser buffer)
 ```
 
-Replayed lines may still be published again (at-least-once delivery). A gap between `lines_read` and `lines_published` alone is not data loss — check `lines_replayed`, filter/skip/drop counters, and publish batch timing.
+Replayed lines may still be published again (at-least-once delivery). With default `parser.flush_interval` (`100ms` for multiline), the multiline parser buffer is usually empty within ~100ms of the last line — a gap between `lines_read` and `lines_published` alone is not data loss. Check `lines_replayed`, filter/skip/drop counters, publish batch timing, and whether `parser.flush_interval` is `0`.
 
 **Process and runtime metrics:**
 

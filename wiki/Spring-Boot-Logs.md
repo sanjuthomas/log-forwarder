@@ -15,7 +15,7 @@ Without a multiline parser, each physical line becomes a separate JSON record. S
 
 ## The solution
 
-1. **`multiline` parser** — group the header line and all continuation lines into one event
+1. **`multiline` parser** — group the header line and all continuation lines into one event; idle-flush the trailing record after `flush_interval` (default `100ms`)
 2. **`regex` transform** — extract timestamp, level, pid, thread, logger, message
 3. **`(?s)` on the message group** — capture the full stack trace in `message`
 
@@ -49,6 +49,7 @@ watch:
 parser:
   type: multiline
   start_pattern: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}'
+  flush_interval: 100ms
 
 transform:
   type: regex
