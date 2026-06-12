@@ -72,7 +72,13 @@ metrics:
   port: 10001
   path: /metrics
 
-# Register this instance with log-forwarder-atc after startup (PUT/DELETE).
+# log-forwarder-atc integration (optional):
+#   - After startup: PUT registers hostname, metrics.port, process_id, UTC timestamp.
+#   - On shutdown (SIGINT/SIGTERM): DELETE deregisters the same instance.
+#   - While running: no ATC traffic — the controller polls GET /health and GET /ready here.
+#   - Registration failures log WARN and do not stop log forwarding.
+#   - atc.enabled requires metrics.enabled (and host reachable by hostname when remote).
 atc:
   enabled: true
   url: http://localhost:8090/api/instances
+  # timeout: 5s  # optional; default 5s for PUT/DELETE

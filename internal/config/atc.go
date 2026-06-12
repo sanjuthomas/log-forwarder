@@ -43,6 +43,9 @@ func (c *Config) validateATC() error {
 	if !c.ATC.Enabled {
 		return nil
 	}
+	if !c.Metrics.Enabled {
+		return fmt.Errorf("atc.enabled requires metrics.enabled so the controller can reach /health and /ready")
+	}
 	parsed, err := url.Parse(c.ATC.EndpointURL())
 	if err != nil {
 		return fmt.Errorf("atc.url: %w", err)

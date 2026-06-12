@@ -46,6 +46,10 @@ defaults:
     truncate_field: message
   metrics:
     enabled: false
+  atc:
+    enabled: false
+    url: http://localhost:8090/api/instances
+    timeout: 5s
   logging:
     level: info
     format: text
@@ -124,6 +128,11 @@ feature_index:
   metrics_http:
     description: metrics.enabled — Prometheus /health /ready /deadletters HTTP server
     configs: [example, example-filter, example-spring-boot-kafka, example-spring-boot-file, example-spring-boot-http-noauth, example-docker-sidecar, example-docker-filter, example-docker-kafka, example-docker-kafka-deadletter]
+
+  atc_registration:
+    description: atc.enabled — register/deregister with log-forwarder-atc at startup/shutdown; controller polls /health and /ready while running
+    configs: [example-spring-boot-kafka]
+    notes: Requires metrics.enabled. One PUT at startup, one DELETE at shutdown; failures are WARN only. No mid-run ATC traffic.
 
   readiness_probe:
     description: metrics.readiness — /ready sink check and buffer threshold
@@ -276,10 +285,14 @@ configs:
         on_full: block
       metrics:
         enabled: true
+        host: 0.0.0.0
         port: 10001
-    features: [multiline_parser, timestamp_normalization, pipeline_buffer_size, pipeline_on_full_block, metrics_http]
+      atc:
+        enabled: true
+        url: http://localhost:8090/api/instances
+    features: [multiline_parser, timestamp_normalization, pipeline_buffer_size, pipeline_on_full_block, metrics_http, atc_registration]
     related: [example-spring-boot-file, example-spring-boot-http-noauth]
-    tags: [kafka, multiline, regex, spring-boot, timestamp]
+    tags: [kafka, multiline, regex, spring-boot, timestamp, atc]
 
   - id: example-spring-boot-file
     path: configs/example-spring-boot-file.yaml

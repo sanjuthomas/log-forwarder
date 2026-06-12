@@ -209,6 +209,9 @@ func main() {
 			"readiness_path", cfg.Metrics.Readiness.ReadyPath(),
 		)
 	}
+	if cfg.ATC.Enabled {
+		startAttrs = append(startAttrs, "atc_url", cfg.ATC.EndpointURL())
+	}
 	if cfg.Pipeline.OnFull == "drop" {
 		logger.Warn("pipeline.on_full is drop — lines discarded when the buffer is full are permanent loss and are not replayed on restart",
 			"buffer_size", cfg.Pipeline.BufferSize,

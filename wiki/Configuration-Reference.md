@@ -521,4 +521,47 @@ metrics:
   path: /metrics
 ```
 
+`/health` and `/ready` JSON responses include `process_id` (the forwarder OS PID).
+
 See [[Monitoring|Monitoring the forwarder]] for scrape setup, health checks, and alert guidance.
+
+## `atc`
+
+Optional registration with **log-forwarder-atc**. **Disabled by default.**
+
+| Field | Description |
+|-------|-------------|
+| `enabled` | Register at startup and deregister at shutdown (default `false`) |
+| `url` | Full `PUT`/`DELETE` endpoint (default `http://localhost:8090/api/instances`) |
+| `timeout` | HTTP timeout per registration call (default `5s`) |
+
+Requires `metrics.enabled`. The registered `port` is `metrics.port` (default `8080`). Bind `metrics.host` so the controller can reach `/health` and `/ready` (often `0.0.0.0` when probed by hostname).
+
+```yaml
+atc:
+  enabled: true
+  url: http://atc.example.com:8090/api/instances
+  timeout: 5s
+```
+
+**Startup** — after watcher and pipeline are running, the forwarder sends one `PUT`:
+
+```json
+{"hostname":"app-01","port":8080,"process_id":12345,"timestamp":"2026-06-11T14:30:00Z"}
+```
+
+**Shutdown** — on SIGINT/SIGTERM (or fatal runner error path), one `DELETE` with the same identity fields before canceling runners.
+
+**While running** — the forwarder does not call ATC. The controller polls `GET /health` and `GET /ready`.
+
+**Failures** — unreachable ATC or non-2xx responses log `atc registration status` at **WARN** with `status=failed` or `status=deregistration_failed`. Log forwarding is unaffected. There is no mid-run retry; restart after ATC is available to register again.
+
+**Edge cases:**
+
+| Case | Behavior |
+|------|----------|
+| ATC down at startup | WARN; forwarder runs normally; ATC unaware until restart |
+| ATC down during operation | No forwarder action |
+| ATC down at shutdown | WARN; graceful shutdown completes |
+| `kill -9` / OOM | No `DELETE`; stale registration until ATC cleanup |
+| `atc.enabled` without `metrics.enabled` | Config validation error at load |

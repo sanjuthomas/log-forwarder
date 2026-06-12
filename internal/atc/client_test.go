@@ -122,6 +122,26 @@ func TestNewInstanceUsesMetricsPortDefault(t *testing.T) {
 	}
 }
 
+func TestDeregisterNon2xx(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "gone", http.StatusGone)
+	}))
+	t.Cleanup(server.Close)
+
+	client := atc.NewClient(config.ATCConfig{
+		Enabled: true,
+		URL:     server.URL + "/api/instances",
+	})
+
+	inst := atc.Instance{Hostname: "host-a", Port: 8080, ProcessID: 1, Timestamp: time.Now().UTC().Format(time.RFC3339Nano)}
+	err := client.Deregister(context.Background(), inst)
+	if err == nil {
+		t.Fatal("expected error for non-2xx DELETE response")
+	}
+}
+
 func TestRegisterNon2xx(t *testing.T) {
 	t.Parallel()
 

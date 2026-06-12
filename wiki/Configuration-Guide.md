@@ -165,7 +165,24 @@ metrics:
   path: /metrics
 ```
 
-When enabled, `GET /health` is also available on the same port.
+When enabled, `GET /health` and `GET /ready` are also available on the same port (both include `process_id`).
+
+## `atc` — controller registration (optional)
+
+When using **log-forwarder-atc**, enable metrics and register the instance endpoint:
+
+```yaml
+metrics:
+  enabled: true
+  host: 0.0.0.0
+  port: 10001
+
+atc:
+  enabled: true
+  url: http://localhost:8090/api/instances
+```
+
+The forwarder calls ATC only at startup (`PUT`) and shutdown (`DELETE`). While running, ATC polls `/health` and `/ready` here. See [[Monitoring#8-log-forwarder-atc-integration]].
 
 ## Validation errors at startup
 
@@ -175,5 +192,6 @@ The forwarder validates config before running. Common mistakes:
 - `sink.kafka` missing when `sink.type: kafka`
 - Multiline parser without `start_pattern`
 - Regex transform without `pattern`
+- `atc.enabled` without `metrics.enabled`
 
 Fix the YAML and restart.

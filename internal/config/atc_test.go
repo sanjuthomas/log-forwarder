@@ -51,6 +51,7 @@ func TestValidateATCEnabledRequiresValidURL(t *testing.T) {
 
 	cfg := Default()
 	cfg.ATC.Enabled = true
+	cfg.Metrics.Enabled = true
 	cfg.ATC.URL = "ftp://atc.example.com/api/instances"
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected validation error for non-http atc.url")
@@ -58,6 +59,7 @@ func TestValidateATCEnabledRequiresValidURL(t *testing.T) {
 
 	cfg = Default()
 	cfg.ATC.Enabled = true
+	cfg.Metrics.Enabled = true
 	cfg.ATC.URL = "http://localhost:8090"
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected validation error when atc.url has no path")
@@ -65,9 +67,21 @@ func TestValidateATCEnabledRequiresValidURL(t *testing.T) {
 
 	cfg = Default()
 	cfg.ATC.Enabled = true
+	cfg.Metrics.Enabled = true
 	cfg.ATC.Timeout = "not-a-duration"
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected validation error for invalid atc.timeout")
+	}
+}
+
+func TestValidateATCEnabledRequiresMetrics(t *testing.T) {
+	t.Parallel()
+
+	cfg := Default()
+	cfg.ATC.Enabled = true
+	cfg.Metrics.Enabled = false
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected validation error when atc.enabled without metrics.enabled")
 	}
 }
 
@@ -76,6 +90,7 @@ func TestValidateATCEnabledValid(t *testing.T) {
 
 	cfg := Default()
 	cfg.ATC.Enabled = true
+	cfg.Metrics.Enabled = true
 	cfg.ATC.URL = "http://atc.internal:8090/api/instances"
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
