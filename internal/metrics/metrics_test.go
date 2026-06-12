@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -153,6 +154,31 @@ func TestMetricsServerExposesApplicationMetrics(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestCollectorStartFailsWhenPortUnavailable(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen() error = %v", err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+
+	port := ln.Addr().(*net.TCPAddr).Port
+	collector, shutdown, err := New(config.MetricsConfig{
+		Enabled: true,
+		Host:    "127.0.0.1",
+		Port:    port,
+		Path:    "/metrics",
+	}, Snapshot{}, nil, nil)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(func() { _ = shutdown(context.Background()) })
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if err := collector.Start(logger); err == nil {
+		t.Fatal("Start() error = nil, want bind failure")
 	}
 }
 
