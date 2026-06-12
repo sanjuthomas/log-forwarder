@@ -24,6 +24,7 @@ type Config struct {
 	Pipeline   PipelineConfig   `yaml:"pipeline"`
 	Logging    LoggingConfig    `yaml:"logging"`
 	Metrics    MetricsConfig    `yaml:"metrics"`
+	ATC        ATCConfig        `yaml:"atc"`
 }
 
 // WatchSource pairs one directory with its filename glob patterns.
@@ -209,6 +210,9 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if err := c.validateMetrics(); err != nil {
+		return err
+	}
+	if err := c.validateATC(); err != nil {
 		return err
 	}
 	return c.validateState()

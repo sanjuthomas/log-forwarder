@@ -9,8 +9,8 @@ Set `metrics.enabled: true` in your config. The forwarder starts a small HTTP se
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /metrics` | Prometheus scrape endpoint (OpenTelemetry) |
-| `GET /health` | Liveness probe — returns `{"status":"UP"}` |
-| `GET /ready` | Readiness probe (sink, buffer, hibernate) |
+| `GET /health` | Liveness probe — returns `{"status":"UP","process_id":<pid>}` |
+| `GET /ready` | Readiness probe (sink, buffer, hibernate) — includes `process_id` |
 | `GET /deadletters` | Dead letter batch **metadata** only (when `publish_batch.dead_letter.path` is configured) |
 
 Both endpoints share the same `metrics.host` and `metrics.port`. `/health` is only available when metrics are enabled.
@@ -42,7 +42,14 @@ If you changed `metrics.path` in config, use that value for `metrics_path`.
 
 ## 3. Health and readiness checks
 
-Use `/health` for **liveness** probes. It confirms the management server is running only; it does not verify sink connectivity after startup.
+Use `/health` for **liveness** probes. It confirms the management server is running only; it does not verify sink connectivity after startup. Both `/health` and `/ready` include `process_id` (the forwarder OS PID) so controllers and operators can correlate probes with ATC registration.
+
+Example:
+
+```json
+{"status":"UP","process_id":12345}
+{"status":"READY","process_id":12345}
+```
 
 Use `/ready` for **readiness** probes when `metrics.enabled: true`. It returns `503` when:
 - the sink fails its connectivity check (when the sink implements `sink.Checker` and `metrics.readiness.sink_check` is true)
@@ -103,9 +110,11 @@ Other useful log lines:
 
 | Log message | Meaning |
 |-------------|---------|
-| `log forwarder started` | Process is up; includes sources, topic, and metrics address when enabled |
+| `log forwarder started` | Process is up; includes sources, sink type, metrics address, and `atc_url` when ATC is enabled |
 | `sink connectivity verified` | Startup sink check passed |
 | `sink unavailable at startup` | Forwarder refused to start — destination unreachable |
+| `atc registration status` | ATC lifecycle (`status`: `disabled`, `registering`, `registered`, `failed`, `deregistering`, `deregistered`, `deregistration_failed`) — see [[Monitoring#8-log-forwarder-atc|ATC integration]] |
+| `shutdown signal received` | SIGINT/SIGTERM received; deregister runs before runner cancel |
 | `publish failed, retrying` | Transient publish error; check sink destination and network |
 | `forwarder stopped` | Clean or error shutdown |
 
@@ -176,3 +185,71 @@ Replayed lines may still be published again (at-least-once delivery). A gap betw
 ## 7. Quick checks
 
 ```bash
+curl -s http://127.0.0.1:8080/health
+curl -s http://127.0.0.1:8080/ready
+curl -s http://127.0.0.1:8080/metrics | head
+```
+
+## 8. log-forwarder-atc integration
+
+Optional registration with **log-forwarder-atc** (Air Traffic Controller). Disabled by default.
+
+### Responsibilities
+
+| Component | Role |
+|-----------|------|
+| **Forwarder** | `PUT` once after startup; `DELETE` once before shutdown. Exposes `/health` and `/ready` on `metrics.host`:`metrics.port`. |
+| **ATC** | Tracks registered instances. While they run, polls `GET /health` and `GET /ready` on the registered host and port. |
+
+The forwarder **does not** contact ATC while running (no heartbeat, no mid-run re-register).
+
+### Configuration
+
+```yaml
+metrics:
+  enabled: true
+  host: 0.0.0.0   # must be reachable by hostname when ATC runs remotely
+  port: 10001
+
+atc:
+  enabled: true
+  url: http://localhost:8090/api/instances   # full PUT/DELETE endpoint
+  timeout: 5s                                 # optional; per registration call
+```
+
+`atc.enabled` requires `metrics.enabled`. Registration uses `metrics.port` (default `8080`) in the JSON body.
+
+### Registration payload (`PUT`)
+
+```json
+{
+  "hostname": "app-server-01",
+  "port": 10001,
+  "process_id": 12345,
+  "timestamp": "2026-06-11T14:30:00.123456789Z"
+}
+```
+
+`DELETE` sends the same identity fields. `process_id` matches `/health` and `/ready`.
+
+### Failure behavior (does not block forwarding)
+
+| When | ATC down / error | Core log forwarding |
+|------|------------------|---------------------|
+| Startup `PUT` | WARN `atc registration status` `status=failed` | **Continues** — watcher and pipeline already running |
+| Running | No ATC calls | Unaffected |
+| Shutdown `DELETE` | WARN `status=deregistration_failed` | Shutdown **continues** |
+| `kill -9` / crash | No `DELETE` | ATC may show stale instance until TTL/cleanup |
+
+### Log lines to watch
+
+```
+atc registration status status=registering ...
+atc registration status status=registered ...
+atc registration status status=failed ... error=...
+shutdown signal received
+atc registration status status=deregistering ...
+atc registration status status=deregistered ...
+```
+
+See [[Config-Catalog#atc--log-forwarder-atc-registration]] and `configs/example-spring-boot-kafka.yaml`.

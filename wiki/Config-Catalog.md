@@ -16,7 +16,7 @@ Config keys do **not** encode units in the name. Use this table when a value's u
 |------|------|---------|
 | **Line events (count)** | `pipeline.buffer_size` | Max queued **line events** between watcher and pipeline — **not** bytes, KiB, or MiB. `1024` = up to 1024 tailed lines waiting to be parsed. Metric: `log_forwarder_pipeline_buffer_depth` / `log_forwarder_pipeline_buffer_capacity` |
 | **Bytes** | `pipeline.max_publish_bytes`, `pipeline.publish_batch.max_bytes` | Serialized JSON size in **bytes** (`1048576` = 1 MiB) |
-| **Duration** | `watch.poll`, `watch.state.flush_interval`, `pipeline.publish_timeout`, `pipeline.publish_retry.*`, `pipeline.publish_batch.flush_interval`, `pipeline.publish_batch.hibernate.wake_interval`, `sink.*.timeout`, `sink.kafka.connect_timeout`, `logging.status_interval`, `metrics.readiness.sink_check_timeout` | Go duration string (`1s`, `100ms`, `30s`) |
+| **Duration** | `watch.poll`, `watch.state.flush_interval`, `pipeline.publish_timeout`, `pipeline.publish_retry.*`, `pipeline.publish_batch.flush_interval`, `pipeline.publish_batch.hibernate.wake_interval`, `sink.*.timeout`, `sink.kafka.connect_timeout`, `logging.status_interval`, `metrics.readiness.sink_check_timeout`, `atc.timeout` | Go duration string (`1s`, `100ms`, `30s`) |
 | **Count** | `watch.state.flush_every`, `pipeline.publish_retry.max_attempts`, `pipeline.publish_batch.max_attempts`, `pipeline.publish_batch.dead_letter.max_consecutive_batches` | Integer count (not a size) |
 | **Ratio** | `metrics.readiness.buffer_threshold` | Fraction `0.0`–`1.0` (e.g. `0.8` = 80% of `pipeline.buffer_size`) |
 
@@ -246,6 +246,26 @@ Example: `configs/example-docker-kafka-deadletter.yaml`. See [[Monitoring#1-Enab
 | `metrics.readiness.buffer_threshold` | Fail ready when `buffer_depth / capacity` exceeds this | ratio | `0.8` | Fraction of `pipeline.buffer_size` (line events), not bytes |
 | `metrics.readiness.require_files` | Fail ready when no files are being tailed | `false` | `true` when an empty watch list should mark pod not ready |
 
+`/health` and `/ready` responses include `process_id` (OS PID) for correlation with ATC registration.
+
+---
+
+## `atc` — log-forwarder-atc registration
+
+Optional integration with **log-forwarder-atc**. **Disabled by default.** Requires `metrics.enabled`.
+
+| Key | What it is for | Default | When to use |
+|-----|----------------|---------|-------------|
+| `atc.enabled` | Register/deregister with the ATC at process boundaries | `false` | Enable when a central controller tracks forwarder instances |
+| `atc.url` | Full HTTP endpoint for `PUT` (register) and `DELETE` (deregister) | `http://localhost:8090/api/instances` | Point at your remote ATC in production |
+| `atc.timeout` | Per-call timeout for registration HTTP | `5s` | Raise on high-latency networks |
+
+**Lifecycle:** one `PUT` after the forwarder is ready (hostname, `metrics.port`, `process_id`, UTC `timestamp`); one `DELETE` on graceful shutdown. **No ATC traffic while running** — the controller polls `/health` and `/ready` on the registered host and port.
+
+**Failures:** registration and deregistration errors log at **WARN** (`atc registration status`) and do **not** stop tailing or publishing. Startup registration failure does not retry until restart.
+
+**Example:** `configs/example-spring-boot-kafka.yaml`. See [[Monitoring#8-log-forwarder-atc-integration]].
+
 ---
 
 ## Quick lookup — operational concerns
@@ -263,3 +283,4 @@ Example: `configs/example-docker-kafka-deadletter.yaml`. See [[Monitoring#1-Enab
 | Drop noisy log levels | `filter` | [[Built-in-Components#Built-in-filters]] |
 | Stack traces as one event | `parser.type: multiline` | [[Spring Boot Logs]] |
 | Alerting | `metrics.enabled`, readiness, Prometheus | [[Monitoring#6-What-to-alert-on]] |
+| ATC instance registry | `atc.enabled`, `atc.url`, `metrics.host`, `metrics.port` | [[Monitoring#8-log-forwarder-atc-integration]] |

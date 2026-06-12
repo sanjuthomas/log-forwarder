@@ -5,10 +5,12 @@ package metrics
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -71,6 +73,13 @@ func TestHealthHandler(t *testing.T) {
 	}
 	if body := rec.Body.String(); !strings.Contains(body, `"status":"UP"`) {
 		t.Fatalf("body = %q, want UP status JSON", body)
+	}
+	var resp healthResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if resp.ProcessID != os.Getpid() {
+		t.Fatalf("process_id = %d, want %d", resp.ProcessID, os.Getpid())
 	}
 	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
 		t.Fatalf("Content-Type = %q, want application/json", ct)

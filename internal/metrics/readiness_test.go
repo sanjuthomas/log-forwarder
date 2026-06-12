@@ -8,6 +8,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -34,8 +36,12 @@ func TestReadinessReady(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
-	if body := rec.Body.String(); !strings.Contains(body, `"status":"READY"`) {
+	body := rec.Body.String()
+	if !strings.Contains(body, `"status":"READY"`) {
 		t.Fatalf("body = %q", body)
+	}
+	if !strings.Contains(body, `"process_id":`+strconv.Itoa(os.Getpid())) {
+		t.Fatalf("body = %q, want process_id %d", body, os.Getpid())
 	}
 }
 
