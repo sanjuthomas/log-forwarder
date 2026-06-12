@@ -121,6 +121,40 @@ func (p *Pipeline) Run(ctx context.Context, lines <-chan watcher.LineEvent) erro
 		}
 	}
 
+	parserIdleInterval := p.cfg.Parser.FlushIntervalDuration()
+	var parserIdle <-chan time.Time
+	var parserIdleTimer *time.Timer
+	if parserIdleInterval > 0 {
+		parserIdleTimer = time.NewTimer(parserIdleInterval)
+		parserIdle = parserIdleTimer.C
+		defer parserIdleTimer.Stop()
+	}
+
+	resetParserIdle := func() {
+		if parserIdleTimer == nil {
+			return
+		}
+		if !parserIdleTimer.Stop() {
+			select {
+			case <-parserIdleTimer.C:
+			default:
+			}
+		}
+		parserIdleTimer.Reset(parserIdleInterval)
+	}
+
+	stopParserIdle := func() {
+		if parserIdleTimer == nil {
+			return
+		}
+		if !parserIdleTimer.Stop() {
+			select {
+			case <-parserIdleTimer.C:
+			default:
+			}
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -129,10 +163,16 @@ func (p *Pipeline) Run(ctx context.Context, lines <-chan watcher.LineEvent) erro
 			if err := p.flushPublishBuffer(ctx, "timer"); err != nil {
 				return p.exitErr(ctx, err)
 			}
+		case <-parserIdle:
+			if err := p.flushParser(ctx); err != nil {
+				return p.exitErr(ctx, err)
+			}
+			stopParserIdle()
 		case event, ok := <-lines:
 			if !ok {
 				return p.shutdown(ctx)
 			}
+			resetParserIdle()
 			records, err := p.parser.Feed(event)
 			if err != nil {
 				return p.exitErr(ctx, err)

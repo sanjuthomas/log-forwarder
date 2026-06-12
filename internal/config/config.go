@@ -71,6 +71,7 @@ func (c WatchConfig) Entries() []WatchSource {
 type ParserConfig struct {
 	Type          string `yaml:"type"`
 	StartPattern  string `yaml:"start_pattern"`
+	FlushInterval string `yaml:"flush_interval"`
 }
 
 // TransformConfig selects the transformer implementation and its options.
@@ -238,6 +239,11 @@ func (c *Config) validateParser() error {
 		}
 		if _, err := regexp.Compile(c.Parser.StartPattern); err != nil {
 			return fmt.Errorf("parser.start_pattern: %w", err)
+		}
+		if c.Parser.FlushInterval != "" && c.Parser.FlushInterval != "0" {
+			if _, err := time.ParseDuration(c.Parser.FlushInterval); err != nil {
+				return fmt.Errorf("parser.flush_interval: %w", err)
+			}
 		}
 	}
 	return nil
