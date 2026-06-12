@@ -37,15 +37,16 @@ The startup error mentions `watermark file ... is corrupt or unreadable` and sug
 Enable metrics and check:
 
 - `log_forwarder_files_watched` > 0
-- `log_forwarder_lines_read` increasing
+- `log_forwarder_lines_read` increasing (new appended lines only)
 - `log_forwarder_lines_published` vs `log_forwarder_lines_skipped`
+- `log_forwarder_lines_replayed` — non-zero after restart means at-least-once replay from stale watermark, not missing new data
 
 ## Permanent log loss from `pipeline.on_full: drop`
 
 Symptoms:
 
 - `rate(log_forwarder_pipeline_buffer_dropped[5m]) > 0`
-- `log_forwarder_lines_read` increases but `log_forwarder_lines_published` lags or stalls
+- `log_forwarder_lines_read` or `log_forwarder_lines_replayed` increases but `log_forwarder_lines_published` lags or stalls
 - Gaps in the sink with no publish-failure alerts
 
 **Cause:** With `on_full: drop`, the watcher reads each line and advances its in-memory file offset **before** enqueueing. If the pipeline buffer is full, the line is discarded and the watermark is **not** updated. Restart resumes from the last processed watermark — dropped bytes are skipped forever. Under sustained backpressure, the same drop loop can continue indefinitely.
@@ -61,7 +62,7 @@ Usually caused by:
 - Log rotation with unexpected inode behavior (rare)
 - **Crash or `kill -9` after Kafka ack but before watermark flush** — the built-in Kafka sink uses leader ack only (`RequireOne`), synchronous writes, and no idempotent producer keys. Watermarks are debounced (`watch.state.flush_interval`, default `1s`). A restart can re-publish the last flush window of records. See [[Choosing a Sink#Kafka delivery semantics]].
 
-**Fix:** One watermark file per process; avoid resetting watermarks unless you intend to re-ship. Design consumers for **at-least-once** delivery (dedupe keys, idempotent sinks). Tighten `watch.state.flush_interval` (or set `0`) to shrink the duplicate window at the cost of more disk I/O — this does not provide exactly-once.
+**Fix:** One watermark file per process; avoid resetting watermarks unless you intend to re-ship. Design consumers for **at-least-once** delivery (dedupe keys, idempotent sinks). Tighten `watch.state.flush_interval` (or set `0`) to shrink the duplicate window at the cost of more disk I/O — this does not provide exactly-once. When metrics are enabled, `log_forwarder_lines_replayed` increments for bytes re-read after restart due to watermark lag; `log_forwarder_lines_read` stays at zero if no new lines were appended.
 
 ## Spring Boot stack trace split across many records
 

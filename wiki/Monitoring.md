@@ -124,7 +124,8 @@ Other useful log lines:
 
 | Metric | Description |
 |--------|-------------|
-| `log_forwarder_lines_read` | Lines read from watched files |
+| `log_forwarder_lines_read` | Newly appended log lines read from watched files (excludes at-least-once replays on restart) |
+| `log_forwarder_lines_replayed` | Lines re-read after restart because the on-disk watermark lagged behind published data |
 | `log_forwarder_lines_published` | Lines published to the configured sink |
 | `log_forwarder_lines_filtered` | Lines dropped by configured filters (after transform) |
 | `log_forwarder_lines_skipped` | Lines dropped (`transform.on_error: skip`) |
@@ -145,6 +146,14 @@ Other useful log lines:
 | `log_forwarder_files_watched` | Files currently being tailed |
 | `log_forwarder_pipeline_buffer_depth` | Events queued between watcher and pipeline |
 | `log_forwarder_pipeline_buffer_capacity` | Configured `pipeline.buffer_size` |
+
+**Line accounting:** `lines_read` counts only bytes appended after the file size observed at tail open (or all lines when tailing from the beginning). On restart with a stale watermark, bytes that were already in the file but not yet persisted to disk are counted as `lines_replayed`, not `lines_read`. Together:
+
+```
+lines_read + lines_replayed ≈ lines_published + lines_filtered + lines_skipped + pipeline_buffer_dropped + (lines waiting in publish batch)
+```
+
+Replayed lines may still be published again (at-least-once delivery). A gap between `lines_read` and `lines_published` alone is not data loss — check `lines_replayed`, filter/skip/drop counters, and publish batch timing.
 
 **Process and runtime metrics:**
 
@@ -168,6 +177,7 @@ Other useful log lines:
 | No files watched | `log_forwarder_files_watched == 0` while logs are expected | Wrong watch paths, patterns, or permissions |
 | Buffer drops | `rate(log_forwarder_pipeline_buffer_dropped[5m]) > 0` | `pipeline.on_full: drop` under overload — **permanent** log loss; not recoverable on restart |
 | Read/publish gap | `rate(log_forwarder_lines_read[5m])` >> `rate(log_forwarder_lines_published[5m])` | Transform skips, filter drops, buffer drops (`on_full: drop`), persistent publish failures, or pipeline stall |
+| Replay after restart | `rate(log_forwarder_lines_replayed[5m]) > 0` | On-disk watermark lagged behind published data (at-least-once replay); tighten `watch.state.flush_interval` or use `flush_interval: 0` if duplicates are costly |
 | High filter rate | `rate(log_forwarder_lines_filtered[5m])` high vs `lines_read` | Expected when filtering noisy logs; tune rules if too aggressive |
 | Memory growth | `process_memory_usage` or `go_memory_used` trending up without stabilizing | Possible leak or sustained backlog |
 | Process down | `/health` failing or scrape target `up == 0` | Crash, OOM kill, or misconfigured port |

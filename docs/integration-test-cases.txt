@@ -59,7 +59,8 @@ E2E-8 TestE2E_PublishRetryRecovers
 E2E-9 TestE2E_MetricsHealthAndCounters
                                              Metrics server /health returns 200;
                                              /metrics exposes lines_read and
-                                             lines_published after one line processed.
+                                             lines_published after one line processed;
+                                             lines_replayed appears after restart replay.
 
 E2E-10 TestE2E_FilterErrorsOnlyToFileSink
                                              Tab-delimited INFO/WARN/ERROR lines;

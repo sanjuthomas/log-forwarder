@@ -34,6 +34,7 @@ const scopeName = "github.com/sanjuthomas/log-forwarder"
 // Collector records forwarder metrics via OpenTelemetry.
 type Collector struct {
 	linesRead            metric.Int64Counter
+	linesReplayed        metric.Int64Counter
 	linesPublished       metric.Int64Counter
 	linesSkipped         metric.Int64Counter
 	linesFiltered        metric.Int64Counter
@@ -163,7 +164,16 @@ func New(cfg config.MetricsConfig, snapshot Snapshot, readiness *Readiness, dead
 func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 	linesRead, err := meter.Int64Counter(
 		"log_forwarder.lines.read",
-		metric.WithDescription("Total number of log lines read from watched files."),
+		metric.WithDescription("Total number of newly appended log lines read from watched files (excludes at-least-once replays on restart)."),
+		metric.WithUnit("{line}"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	linesReplayed, err := meter.Int64Counter(
+		"log_forwarder.lines.replayed",
+		metric.WithDescription("Total number of log lines re-read after restart because the on-disk watermark lagged behind published data."),
 		metric.WithUnit("{line}"),
 	)
 	if err != nil {
@@ -389,6 +399,7 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 
 	return &Collector{
 		linesRead:            linesRead,
+		linesReplayed:        linesReplayed,
 		linesPublished:       linesPublished,
 		linesSkipped:         linesSkipped,
 		linesFiltered:        linesFiltered,
@@ -451,6 +462,13 @@ func (c *Collector) RecordLineRead(ctx context.Context, count int64) {
 		return
 	}
 	c.linesRead.Add(ctx, count)
+}
+
+func (c *Collector) RecordLineReplayed(ctx context.Context, count int64) {
+	if c == nil || c.linesReplayed == nil {
+		return
+	}
+	c.linesReplayed.Add(ctx, count)
 }
 
 func (c *Collector) RecordLinePublished(ctx context.Context) {

@@ -107,6 +107,7 @@ func TestMetricsServerExposesApplicationMetrics(t *testing.T) {
 	})
 
 	collector.RecordLineRead(context.Background(), 4)
+	collector.RecordLineReplayed(context.Background(), 2)
 	collector.RecordLinePublished(context.Background())
 	collector.RecordLineBufferDropped(context.Background())
 	collector.RecordPublishFailure(context.Background())
@@ -137,6 +138,7 @@ func TestMetricsServerExposesApplicationMetrics(t *testing.T) {
 			metricsBody := string(body)
 			for _, want := range []string{
 				"log_forwarder_lines_read",
+				"log_forwarder_lines_replayed",
 				"log_forwarder_lines_published",
 				"log_forwarder_pipeline_buffer_dropped",
 				"log_forwarder_publish_failures",
@@ -217,6 +219,7 @@ func TestCollectorRecordMethodsWhenEnabled(t *testing.T) {
 	ctx := context.Background()
 	collector.RecordLineSkipped(ctx)
 	collector.RecordLineFiltered(ctx)
+	collector.RecordLineReplayed(ctx, 1)
 	collector.RecordTransformError(ctx)
 	collector.RecordTimestampParseFailure(ctx)
 	collector.RecordPublishTruncation(ctx)
@@ -233,6 +236,7 @@ func TestCollectorRecordMethodsWhenEnabled(t *testing.T) {
 	for _, want := range []string{
 		"log_forwarder_lines_skipped",
 		"log_forwarder_lines_filtered",
+		"log_forwarder_lines_replayed",
 		"log_forwarder_transform_errors",
 		"log_forwarder_timestamp_parse_failures",
 		"log_forwarder_publish_truncations",
