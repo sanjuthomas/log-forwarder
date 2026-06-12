@@ -10,9 +10,11 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
+	"github.com/sanjuthomas/log-forwarder/internal/atc"
 	"github.com/sanjuthomas/log-forwarder/internal/config"
 	applogging "github.com/sanjuthomas/log-forwarder/internal/logging"
 	"github.com/sanjuthomas/log-forwarder/internal/metrics"
@@ -86,8 +88,34 @@ func main() {
 	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	runCtx, runCancel := context.WithCancel(signalCtx)
+	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
+
+	atcClient := atc.NewClient(cfg.ATC)
+	atcInstance := atc.NewInstance(cfg)
+	var deregisterOnce sync.Once
+	deregisterFromATC := func() {
+		deregisterOnce.Do(func() {
+			if atcClient == nil {
+				return
+			}
+			deregCtx, deregCancel := context.WithTimeout(context.Background(), cfg.ATC.TimeoutDuration())
+			defer deregCancel()
+			deregInstance := atcInstance
+			deregInstance.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
+			logger.Info("atc registration status", "status", "deregistering", "url", cfg.ATC.EndpointURL(), "hostname", deregInstance.Hostname, "port", deregInstance.Port, "process_id", deregInstance.ProcessID)
+			if err := atcClient.Deregister(deregCtx, deregInstance); err != nil {
+				logATCDeregistrationStatus(logger, cfg, err, deregInstance)
+			} else {
+				logATCDeregistrationStatus(logger, cfg, nil, deregInstance)
+			}
+		})
+	}
+	defer deregisterFromATC()
+
+	cancelRunners := func() {
+		runCancel()
+	}
 
 	lines := make(chan watcher.LineEvent, cfg.Pipeline.BufferSize)
 
@@ -181,6 +209,9 @@ func main() {
 			"readiness_path", cfg.Metrics.Readiness.ReadyPath(),
 		)
 	}
+	if cfg.ATC.Enabled {
+		startAttrs = append(startAttrs, "atc_url", cfg.ATC.EndpointURL())
+	}
 	if cfg.Pipeline.OnFull == "drop" {
 		logger.Warn("pipeline.on_full is drop — lines discarded when the buffer is full are permanent loss and are not replayed on restart",
 			"buffer_size", cfg.Pipeline.BufferSize,
@@ -188,13 +219,82 @@ func main() {
 	}
 	logger.Info("log forwarder started", startAttrs...)
 
-	if err := runner.Wait(errCh, runCancel); err != nil {
-		logger.Error("forwarder stopped", "error", err)
-		os.Exit(1)
+	if atcClient != nil {
+		regCtx, regCancel := context.WithTimeout(context.Background(), cfg.ATC.TimeoutDuration())
+		regInstance := atcInstance
+		regInstance.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
+		logger.Info("atc registration status", "status", "registering", "url", cfg.ATC.EndpointURL(), "hostname", regInstance.Hostname, "port", regInstance.Port, "process_id", regInstance.ProcessID)
+		err := atcClient.Register(regCtx, regInstance)
+		logATCRegistrationStatus(logger, cfg, err, regInstance)
+		regCancel()
+	} else {
+		logATCRegistrationStatus(logger, cfg, nil, atcInstance)
+	}
+
+	runnerDone := make(chan error, 1)
+	go func() {
+		runnerDone <- runner.Wait(errCh, cancelRunners)
+	}()
+
+	select {
+	case err := <-runnerDone:
+		deregisterFromATC()
+		if err != nil {
+			logger.Error("forwarder stopped", "error", err)
+			os.Exit(1)
+		}
+	case <-signalCtx.Done():
+		logger.Info("shutdown signal received")
+		deregisterFromATC()
+		cancelRunners()
+		if err := <-runnerDone; err != nil {
+			logger.Error("forwarder stopped", "error", err)
+			os.Exit(1)
+		}
 	}
 
 	close(lines)
 	logger.Info("log forwarder stopped")
+}
+
+func logATCRegistrationStatus(logger *slog.Logger, cfg *config.Config, err error, inst atc.Instance) {
+	if !cfg.ATC.Enabled {
+		logger.Info("atc registration status", "status", "disabled")
+		return
+	}
+	attrs := []any{
+		"status", "registered",
+		"url", cfg.ATC.EndpointURL(),
+		"hostname", inst.Hostname,
+		"port", inst.Port,
+		"process_id", inst.ProcessID,
+		"timestamp", inst.Timestamp,
+	}
+	if err != nil {
+		attrs[1] = "failed"
+		attrs = append(attrs, "error", err)
+		logger.Warn("atc registration status", attrs...)
+		return
+	}
+	logger.Info("atc registration status", attrs...)
+}
+
+func logATCDeregistrationStatus(logger *slog.Logger, cfg *config.Config, err error, inst atc.Instance) {
+	attrs := []any{
+		"status", "deregistered",
+		"url", cfg.ATC.EndpointURL(),
+		"hostname", inst.Hostname,
+		"port", inst.Port,
+		"process_id", inst.ProcessID,
+		"timestamp", inst.Timestamp,
+	}
+	if err != nil {
+		attrs[1] = "deregistration_failed"
+		attrs = append(attrs, "error", err)
+		logger.Warn("atc registration status", attrs...)
+		return
+	}
+	logger.Info("atc registration status", attrs...)
 }
 
 func checkSinkAtStartup(s sink.Sink, cfg *config.Config) error {
