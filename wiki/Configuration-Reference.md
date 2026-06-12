@@ -523,7 +523,7 @@ metrics:
 
 `/health` and `/ready` JSON responses include `process_id` (the forwarder OS PID).
 
-See [[Monitoring|Monitoring the forwarder]] for scrape setup, health checks, and alert guidance.
+When enabled, the scrape endpoint includes forwarder counters (lines read/published, publish failures, buffer depth, …), plus process gauges such as `process_cpu_utilization` (percent of one CPU core, like `top`) and `process_memory_usage` (RSS bytes). See [[Monitoring|Monitoring the forwarder]] for the full metrics catalog, scrape setup, and alert guidance.
 
 ## `atc`
 

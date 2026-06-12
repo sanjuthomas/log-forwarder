@@ -111,7 +111,7 @@ Signal                                      Healthy              Problem
 log_forwarder_lines_read + lines_replayed ~= lines_published Yes   Parse skips, replay after restart, or publish stall
 pipeline_buffer_depth / capacity            Stays low            Pipeline falling behind
 process_memory_usage                        Stable               Leak or unbounded backlog
-CPU                                         Stable               Regex/multiline hot path under load
+process_cpu_utilization                     Stable vs load       Regex/multiline hot path; can exceed 100 on multi-core hosts
 
 Heavy multiline — periodically append full stack traces (10–50 lines) while load test runs;
 confirm one record per error and latency spikes are acceptable.

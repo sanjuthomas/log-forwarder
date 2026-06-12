@@ -2,7 +2,7 @@
 
 Reference for every **YAML config key**: what it does, the default, and when to set it.
 
-For copy-paste example files, see [[Example Configs]] and [`examples/config-catalog.yaml`](https://github.com/sanjuthomas/log-forwarder/blob/main/examples/config-catalog.yaml) (which example demonstrates which features).
+For copy-paste example files, see [[Example Configs]] and [`examples/config-catalog.yaml`](https://github.com/sanjuthomas/log-forwarder/blob/main/examples/config-catalog.yaml) (which example demonstrates which features; `metrics_catalog` lists Prometheus names when metrics are enabled).
 
 For narrative setup, see [[Configuration Guide]] and [[Configuration-Reference]].
 
@@ -21,6 +21,8 @@ Config keys do **not** encode units in the name. Use this table when a value's u
 | **Ratio** | `metrics.readiness.buffer_threshold` | Fraction `0.0`–`1.0` (e.g. `0.8` = 80% of `pipeline.buffer_size`) |
 
 **Two different buffers:** `pipeline.buffer_size` is a **line-event queue** (watcher → parser). `pipeline.publish_batch.max_bytes` is a **byte buffer** (enrich → sink). They are independent.
+
+**Prometheus metrics:** when `metrics.enabled: true`, the forwarder exposes counters and gauges on `GET /metrics`. Names use underscores in Prometheus (e.g. `log_forwarder_lines_read`). See [[Monitoring#5-metrics-reference|Metrics reference]] and [`examples/config-catalog.yaml`](https://github.com/sanjuthomas/log-forwarder/blob/main/examples/config-catalog.yaml) (`metrics_catalog` section) for the full list.
 
 ---
 
@@ -236,6 +238,15 @@ Example: `configs/example-docker-kafka-deadletter.yaml`. See [[Monitoring#1-Enab
 
 **Endpoints when enabled:** `GET /metrics`, `GET /health` (liveness), `GET /ready` (readiness), `GET /deadletters` (batch metadata when dead letter path configured). See [[Monitoring]].
 
+**Notable `/metrics` gauges (no config key — always exported when metrics are enabled):**
+
+| Prometheus name | Description |
+|-----------------|-------------|
+| `process_cpu_utilization` | CPU used as **percent of one core** (e.g. `1.3` = 1.3%; `100` = one core fully busy). Same basis as `top` / psutil. Averaged since the previous scrape; **first scrape is `0`**. |
+| `process_memory_usage` | Process RSS in bytes |
+
+Full metric catalog: [[Monitoring#5-metrics-reference]] and [`metrics_catalog`](https://github.com/sanjuthomas/log-forwarder/blob/main/examples/config-catalog.yaml) in `examples/config-catalog.yaml`.
+
 ### `metrics.readiness`
 
 | Key | What it is for | Default | When to use |
@@ -282,5 +293,6 @@ Optional integration with **log-forwarder-atc**. **Disabled by default.** Requir
 | Oversized records | `pipeline.max_publish_bytes`, `truncate_field` | [[Configuration-Reference]] |
 | Drop noisy log levels | `filter` | [[Built-in-Components#Built-in-filters]] |
 | Stack traces as one event | `parser.type: multiline` | [[Spring Boot Logs]] |
+| Process CPU / memory | `process_cpu_utilization`, `process_memory_usage` on `/metrics` | [[Monitoring#5-metrics-reference]] |
 | Alerting | `metrics.enabled`, readiness, Prometheus | [[Monitoring#6-What-to-alert-on]] |
 | ATC instance registry | `atc.enabled`, `atc.url`, `metrics.host`, `metrics.port` | [[Monitoring#8-log-forwarder-atc-integration]] |

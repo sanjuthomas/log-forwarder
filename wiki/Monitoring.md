@@ -143,6 +143,7 @@ Other useful log lines:
 | `log_forwarder_publish_buffer_active_bytes` | Serialized JSON bytes waiting in the publish buffer |
 | `log_forwarder_publish_retries` | Retries after a publish failure |
 | `log_forwarder_publish_duration` | Sink publish latency (histogram, seconds) |
+| `log_forwarder_watermark_flush_errors` | Failed watermark persist attempts |
 | `log_forwarder_files_watched` | Files currently being tailed |
 | `log_forwarder_pipeline_buffer_depth` | Events queued between watcher and pipeline |
 | `log_forwarder_pipeline_buffer_capacity` | Configured `pipeline.buffer_size` |
@@ -160,11 +161,14 @@ Replayed lines may still be published again (at-least-once delivery). A gap betw
 | Metric | Description |
 |--------|-------------|
 | `process_memory_usage` | Process RSS in bytes |
-| `process_cpu_time` | Process CPU time (user/system) |
+| `process_cpu_utilization` | CPU used as percent of one core (`1.3` = 1.3%; `100` = one core fully busy; can exceed 100 when using multiple cores). Same basis as `top` / psutil. Value is averaged over the interval since the **previous scrape** — align `scrape_interval` with how reactive you want the number; **first scrape is `0`**. |
+| `process_cpu_time` | Cumulative process CPU time in seconds (user/system counters) |
 | `go_memory_used` | Go runtime memory in use |
 | `go_memory_allocated` | Heap memory allocated by the application |
 | `go_cpu_time` | CPU time spent by the Go runtime |
 | `go_goroutine_count` | Number of live goroutines |
+
+Machine-readable catalog: [`examples/config-catalog.yaml`](https://github.com/sanjuthomas/log-forwarder/blob/main/examples/config-catalog.yaml) (`metrics_catalog` section).
 
 ## 6. What to alert on
 
@@ -180,15 +184,20 @@ Replayed lines may still be published again (at-least-once delivery). A gap betw
 | Replay after restart | `rate(log_forwarder_lines_replayed[5m]) > 0` | On-disk watermark lagged behind published data (at-least-once replay); tighten `watch.state.flush_interval` or use `flush_interval: 0` if duplicates are costly |
 | High filter rate | `rate(log_forwarder_lines_filtered[5m])` high vs `lines_read` | Expected when filtering noisy logs; tune rules if too aggressive |
 | Memory growth | `process_memory_usage` or `go_memory_used` trending up without stabilizing | Possible leak or sustained backlog |
+| High CPU | `process_cpu_utilization` sustained above your baseline (e.g. `> 80` for one full core) | Heavy regex/multiline parsing, publish backlog, or undersized host |
 | Process down | `/health` failing or scrape target `up == 0` | Crash, OOM kill, or misconfigured port |
 
 ## 7. Quick checks
 
 ```bash
+curl -s http://127.0.0.1:8080/metrics | grep -E 'process_cpu_utilization|process_memory_usage'
+curl -s http://127.0.0.1:8080/metrics | grep log_forwarder_lines_
 curl -s http://127.0.0.1:8080/health
 curl -s http://127.0.0.1:8080/ready
 curl -s http://127.0.0.1:8080/metrics | head
 ```
+
+Scrape at least twice (or wait one `scrape_interval`) before expecting a non-zero `process_cpu_utilization`.
 
 ## 8. log-forwarder-atc integration
 

@@ -165,7 +165,7 @@ metrics:
   path: /metrics
 ```
 
-When enabled, `GET /health` and `GET /ready` are also available on the same port (both include `process_id`).
+When enabled, `GET /health` and `GET /ready` are also available on the same port (both include `process_id`). The scrape endpoint includes forwarder counters plus process gauges such as `process_cpu_utilization` (percent of one CPU core, like `top`) and `process_memory_usage` (RSS bytes). See [[Monitoring]] for the full metrics catalog, scrape setup, and alert guidance.
 
 ## `atc` — controller registration (optional)
 

@@ -54,7 +54,7 @@ See [Installation and First Run](https://github.com/sanjuthomas/log-forwarder/wi
 | Path | Contents |
 |------|----------|
 | [`configs/`](configs/) | Example YAML configs |
-| [`examples/config-catalog.yaml`](examples/config-catalog.yaml) | Master list of all example configs |
+| [`examples/config-catalog.yaml`](examples/config-catalog.yaml) | Master list of example configs and Prometheus `metrics_catalog` |
 | [`examples/kafka/`](examples/kafka/) | Kafka security example configs |
 | [`examples/custom/`](examples/custom/) | Custom binary with registered extensions |
 | [`docs/integration-test-cases.txt`](docs/integration-test-cases.txt) | E2E test catalog |

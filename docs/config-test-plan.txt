@@ -2,8 +2,9 @@ Log Forwarder — Config Combination Test Plan
 =============================================
 
 Companion to:
-  - examples/config-catalog.yaml   (which example demonstrates which feature)
+  - examples/config-catalog.yaml   (which example demonstrates which feature; metrics_catalog)
   - wiki/Config-Catalog            (what each config key means)
+  - wiki/Monitoring                (metrics narrative reference)
   - docs/integration-test-cases.txt (automated test catalog)
 
 Status key:

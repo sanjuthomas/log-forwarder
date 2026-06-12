@@ -145,6 +145,8 @@ func TestMetricsServerExposesApplicationMetrics(t *testing.T) {
 				"log_forwarder_publish_retries",
 				"log_forwarder_publish_duration",
 				"log_forwarder_watermark_flush_errors",
+				"process_cpu_utilization",
+				"process_memory_usage",
 			} {
 				if !strings.Contains(metricsBody, want) {
 					t.Fatalf("metrics body missing %q", want)
