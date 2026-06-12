@@ -9,6 +9,9 @@
 # Config key reference (what each key does, when to use it):
 #   https://github.com/sanjuthomas/log-forwarder/wiki/Config-Catalog
 #
+# Prometheus metrics catalog (when metrics.enabled: true):
+#   metrics_catalog below; narrative reference wiki/Monitoring.md
+#
 # Narrative configuration guide:
 #   https://github.com/sanjuthomas/log-forwarder/wiki/Configuration-Reference
 #
@@ -16,6 +19,129 @@
 #   docs/config-test-plan.txt
 
 version: 2
+
+# Prometheus metrics exported when metrics.enabled: true (names as they appear on GET /metrics).
+# Narrative reference: wiki/Monitoring.md
+metrics_catalog:
+  notes:
+    - OpenTelemetry dot names (log_forwarder.lines.read) export as Prometheus underscores (log_forwarder_lines_read).
+    - Counters export with _total suffix in Prometheus (log_forwarder_lines_read_total).
+    - process_cpu_utilization is averaged since the previous scrape; first scrape is 0.
+    - process_cpu_utilization uses percent of one CPU core (100 = one core fully busy; can exceed 100 on multi-core).
+  application:
+    - name: log_forwarder_lines_read
+      type: counter
+      description: Newly appended log lines read (excludes at-least-once replays on restart)
+    - name: log_forwarder_lines_replayed
+      type: counter
+      description: Lines re-read after restart when watermark lagged behind published data
+    - name: log_forwarder_lines_published
+      type: counter
+      description: Lines published to the configured sink
+    - name: log_forwarder_lines_filtered
+      type: counter
+      description: Lines dropped by configured filters
+    - name: log_forwarder_lines_skipped
+      type: counter
+      description: Lines dropped (transform.on_error skip)
+    - name: log_forwarder_pipeline_buffer_dropped
+      type: counter
+      description: Line events dropped when pipeline.on_full is drop and buffer is full
+    - name: log_forwarder_transform_errors
+      type: counter
+      description: Transform failures
+    - name: log_forwarder_timestamp_parse_failures
+      type: counter
+      description: Records that fell back to processing time during timestamp normalization
+    - name: log_forwarder_publish_failures
+      type: counter
+      description: Failed sink publish attempts
+    - name: log_forwarder_publish_truncations
+      type: counter
+      description: Records truncated to fit pipeline.max_publish_bytes
+    - name: log_forwarder_publish_retries
+      type: counter
+      description: Publish retries after failure
+    - name: log_forwarder_publish_batch_flushes
+      type: counter
+      description: Publish batch flushes (labels reason, result)
+    - name: log_forwarder_publish_dead_letter_batches
+      type: counter
+      description: Publish batches written to dead letter storage
+    - name: log_forwarder_publish_duration
+      type: histogram
+      unit: seconds
+      description: Sink publish latency
+    - name: log_forwarder_publish_batch_size
+      type: histogram
+      description: Records per publish batch flush
+    - name: log_forwarder_publish_batch_bytes
+      type: histogram
+      unit: bytes
+      description: Serialized JSON bytes per publish batch flush
+    - name: log_forwarder_watermark_flush_errors
+      type: counter
+      description: Failed watermark persist attempts
+    - name: log_forwarder_files_watched
+      type: gauge
+      description: Files currently being tailed
+    - name: log_forwarder_pipeline_buffer_depth
+      type: gauge
+      description: Line events queued between watcher and pipeline
+    - name: log_forwarder_pipeline_buffer_capacity
+      type: updowncounter
+      description: Configured pipeline.buffer_size
+    - name: log_forwarder_publish_buffer_active_bytes
+      type: gauge
+      unit: bytes
+      description: Serialized JSON bytes waiting in the publish buffer
+    - name: log_forwarder_publish_hibernating
+      type: gauge
+      description: 1 when forwarder is in sink hibernate mode after failed batch flush
+    - name: log_forwarder_publish_consecutive_dlq_batches
+      type: gauge
+      description: Consecutive dead-letter batches without successful sink publish
+  process:
+    - name: process_cpu_utilization
+      type: gauge
+      unit: percent_of_one_core
+      description: CPU percent like top/psutil; averaged since previous scrape
+    - name: process_memory_usage
+      type: gauge
+      unit: bytes
+      description: Process RSS
+    - name: process_cpu_time
+      type: counter
+      unit: seconds
+      description: Cumulative process CPU time (labels state=user|system)
+  runtime:
+    - name: go_memory_used
+      type: gauge
+      unit: bytes
+      description: Go runtime memory in use
+    - name: go_memory_allocated
+      type: gauge
+      unit: bytes
+      description: Heap memory allocated by the application
+    - name: go_goroutine_count
+      type: gauge
+      description: Number of live goroutines
+  host:
+    - name: system_cpu_time
+      type: counter
+      unit: seconds
+      description: Host CPU time (labels state=user|system|idle|other)
+    - name: system_memory_usage
+      type: gauge
+      unit: bytes
+      description: Host memory usage
+    - name: system_memory_utilization
+      type: gauge
+      description: Host memory utilization ratio
+    - name: system_network_io
+      type: counter
+      unit: bytes
+      description: Host network I/O (labels direction=receive|transmit)
 
 # Built-in defaults when a field is omitted from example configs.
 defaults:

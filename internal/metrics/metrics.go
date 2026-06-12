@@ -126,7 +126,7 @@ func New(cfg config.MetricsConfig, snapshot Snapshot, readiness *Readiness, dead
 	}
 	collector.proc = proc
 
-	if err := registerProcessMemoryGauge(meter, proc); err != nil {
+	if err := registerProcessGauges(meter, proc); err != nil {
 		_ = provider.Shutdown(context.Background())
 		return nil, nil, err
 	}
@@ -418,8 +418,8 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 	}, nil
 }
 
-func registerProcessMemoryGauge(meter metric.Meter, proc *process.Process) error {
-	_, err := meter.Int64ObservableGauge(
+func registerProcessGauges(meter metric.Meter, proc *process.Process) error {
+	if _, err := meter.Int64ObservableGauge(
 		"process.memory.usage",
 		metric.WithDescription("Amount of physical memory used by the forwarder process."),
 		metric.WithUnit("By"),
@@ -429,6 +429,22 @@ func registerProcessMemoryGauge(meter metric.Meter, proc *process.Process) error
 				return nil
 			}
 			observer.Observe(int64(mem.RSS))
+			return nil
+		}),
+	); err != nil {
+		return err
+	}
+
+	_, err := meter.Float64ObservableGauge(
+		"process.cpu.utilization",
+		metric.WithDescription("CPU used as percent of one core (100 = one core fully busy; same basis as top and psutil)."),
+		metric.WithUnit("1"),
+		metric.WithFloat64Callback(func(_ context.Context, observer metric.Float64Observer) error {
+			percent, err := proc.Percent(0)
+			if err != nil {
+				return nil
+			}
+			observer.Observe(percent)
 			return nil
 		}),
 	)
