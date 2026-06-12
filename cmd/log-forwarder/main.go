@@ -170,7 +170,7 @@ func main() {
 		}
 	}()
 	if err := collector.Start(logger); err != nil {
-		logger.Error("start metrics server", "error", err)
+		logger.Error("metrics port unavailable at startup; refusing to start forwarder", "addr", cfg.Metrics.Addr(), "error", err)
 		os.Exit(1)
 	}
 

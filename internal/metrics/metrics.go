@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -464,9 +465,14 @@ func (c *Collector) Start(logger *slog.Logger) error {
 		return nil
 	}
 
+	ln, err := net.Listen("tcp", c.server.Addr)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", c.server.Addr, err)
+	}
+
 	go func() {
 		logger.Info("metrics server started", "addr", c.server.Addr)
-		if err := c.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := c.server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error("metrics server stopped", "error", err)
 		}
 	}()
