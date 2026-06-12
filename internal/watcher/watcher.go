@@ -50,11 +50,14 @@ type Watcher struct {
 }
 
 type fileState struct {
-	path   string
-	file   *os.File
-	reader *bufio.Reader
-	offset int64
-	inode  uint64
+	path           string
+	file           *os.File
+	reader         *bufio.Reader
+	offset         int64
+	inode          uint64
+	resumed        bool
+	resumeOffset   int64
+	fileSizeAtOpen int64
 }
 
 // New constructs a watcher for the configured watch paths and pipeline buffer policy.
@@ -233,12 +236,21 @@ func (w *Watcher) tailFile(path string) error {
 		w.logger.Info("tailing file from beginning", "path", path)
 	}
 
+	info, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		return err
+	}
+
 	state = &fileState{
-		path:   path,
-		file:   f,
-		reader: bufio.NewReader(f),
-		offset: offset,
-		inode:  inode,
+		path:           path,
+		file:           f,
+		reader:         bufio.NewReader(f),
+		offset:         offset,
+		inode:          inode,
+		resumed:        resumed,
+		resumeOffset:   offset,
+		fileSizeAtOpen: info.Size(),
 	}
 
 	w.mu.Lock()
@@ -266,7 +278,7 @@ func (w *Watcher) readNewLines(state *fileState) error {
 			trimmed := strings.TrimRight(string(line), "\r\n")
 			state.offset += int64(len(line))
 			if trimmed != "" {
-				w.metrics.RecordLineRead(context.Background(), 1)
+				w.recordLineIngested(context.Background(), state)
 				if !w.sendLineEvent(LineEvent{
 					Path:   state.path,
 					Line:   []byte(trimmed),
@@ -284,6 +296,24 @@ func (w *Watcher) readNewLines(state *fileState) error {
 			return err
 		}
 	}
+}
+
+// recordLineIngested updates read/replayed counters for a non-empty physical line.
+// Replayed lines were already present in the file when resuming from a stale watermark
+// (at-least-once restart); newly appended lines increment lines_read.
+func (w *Watcher) recordLineIngested(ctx context.Context, state *fileState) {
+	if state.isReplayed() {
+		w.metrics.RecordLineReplayed(ctx, 1)
+		return
+	}
+	w.metrics.RecordLineRead(ctx, 1)
+}
+
+func (s *fileState) isReplayed() bool {
+	if !s.resumed || s.resumeOffset <= 0 {
+		return false
+	}
+	return s.offset > s.resumeOffset && s.offset <= s.fileSizeAtOpen
 }
 
 // sendLineEvent enqueues a line for the pipeline. It returns false when shutdown

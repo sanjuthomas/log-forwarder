@@ -108,7 +108,7 @@ Watch for 30–60 minutes minimum; ideally 24–72 hours:
 
 Signal                                      Healthy              Problem
 ------                                      -------              -------
-log_forwarder_lines_read ~= lines_published Yes                  Parse skips or publish stall
+log_forwarder_lines_read + lines_replayed ~= lines_published Yes   Parse skips, replay after restart, or publish stall
 pipeline_buffer_depth / capacity            Stays low            Pipeline falling behind
 process_memory_usage                        Stable               Leak or unbounded backlog
 CPU                                         Stable               Regex/multiline hot path under load
@@ -154,7 +154,8 @@ Enable metrics and alert on:
   - log_forwarder_pipeline_buffer_depth / capacity > 0.8 (sustained)
   - log_forwarder_files_watched == 0 when logs expected
   - up == 0 on scrape target
-  - Gap: lines_read >> lines_published
+  - Gap: (lines_read + lines_replayed) >> lines_published
+  - rate(log_forwarder_lines_replayed[5m]) > 0 after restart (expected briefly; sustained = stale watermark flush)
 
 Add logging for ops:
 

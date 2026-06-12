@@ -76,7 +76,7 @@ watch:
         - "*.log"
 ```
 
-**Persistence:** Watermark updates are kept in memory on every processed line and written to disk on a schedule (`flush_interval`, default `1s`) or after `flush_every` updates when set. A final flush runs on graceful shutdown (`SIGINT` / `SIGTERM`). Set `flush_interval: 0` to persist after every line (previous behavior, higher disk I/O). On crash or `kill -9`, the on-disk watermark may lag by up to one flush window; already-published lines may be sent again after restart (**at-least-once**).
+**Persistence:** Watermark updates are kept in memory on every processed line and written to disk on a schedule (`flush_interval`, default `1s`) or after `flush_every` updates when set. A final flush runs on graceful shutdown (`SIGINT` / `SIGTERM`). Set `flush_interval: 0` to persist after every line (previous behavior, higher disk I/O). On crash or `kill -9`, the on-disk watermark may lag by up to one flush window; already-published lines may be sent again after restart (**at-least-once**). When metrics are enabled, re-read lines are counted in `log_forwarder_lines_replayed`, not `log_forwarder_lines_read` (see [[Monitoring#5-metrics-reference|Metrics reference]]).
 
 Use an absolute path in production so the file location does not depend on where the service is started from. The forwarder logs the resolved path at startup (`state_path` in the `log forwarder started` message).
 
@@ -496,7 +496,7 @@ This differs from filter/transform drops, which are explicit forwarding decision
 
 **Multiline caveat:** if a continuation line is dropped but later lines are accepted, multiline grouping can be corrupted (orphan lines, split stack traces).
 
-**Metrics:** `log_forwarder_lines_read` still increments for dropped lines, so a gap between `lines_read` and `lines_published` can be misdiagnosed as filter drops or transform skips. Alert separately on `rate(log_forwarder_pipeline_buffer_dropped[5m]) > 0` (see [[Monitoring#What-to-alert-on|What to alert on]]).
+**Metrics:** `log_forwarder_lines_read` or `log_forwarder_lines_replayed` still increments for dropped lines (depending on whether the line was new or a restart replay), so a gap between ingest counters and `lines_published` can be misdiagnosed as filter drops or transform skips. Alert separately on `rate(log_forwarder_pipeline_buffer_dropped[5m]) > 0` (see [[Monitoring#What-to-alert-on|What to alert on]]).
 
 If sustained overload fills the buffer, prefer scaling the sink, increasing `buffer_size`, tuning publish batching, or fixing publish latency — not enabling `drop` — unless you explicitly accept gaps in forwarded logs.
 
