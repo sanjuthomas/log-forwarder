@@ -180,6 +180,8 @@ defaults:
     level: info
     format: text
     status_interval: 30s
+  parser:
+    flush_interval: 100ms  # multiline only; set "0" to disable idle flush
 
 # Maps operational capabilities to example configs that demonstrate them.
 # Empty `configs` means no dedicated example yet — see defaults / wiki.
@@ -279,6 +281,11 @@ feature_index:
   multiline_parser:
     description: parser.type multiline — stack traces as single records
     configs: [example-spring-boot-kafka, example-spring-boot-file, example-spring-boot-http-noauth, example-docker-sidecar]
+
+  multiline_parser_idle_flush:
+    description: parser.flush_interval — idle flush of trailing multiline record (default 100ms for multiline)
+    configs: [example-spring-boot-kafka]
+    notes: Omitted in other multiline examples; they inherit the 100ms default. Set flush_interval "0" to hold the tail until the next header or shutdown.
 
   kafka_connect_timeout:
     description: sink.kafka.connect_timeout — startup broker/topic check deadline
@@ -402,6 +409,8 @@ configs:
     parser: multiline
     transform: regex
     settings:
+      parser:
+        flush_interval: 100ms
       timestamp:
         field: timestamp
         format: "2006-01-02 15:04:05.000"
@@ -416,7 +425,7 @@ configs:
       atc:
         enabled: true
         url: http://localhost:8090/api/instances
-    features: [multiline_parser, timestamp_normalization, pipeline_buffer_size, pipeline_on_full_block, metrics_http, atc_registration]
+    features: [multiline_parser, multiline_parser_idle_flush, timestamp_normalization, pipeline_buffer_size, pipeline_on_full_block, metrics_http, atc_registration]
     related: [example-spring-boot-file, example-spring-boot-http-noauth]
     tags: [kafka, multiline, regex, spring-boot, timestamp, atc]
 

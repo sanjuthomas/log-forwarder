@@ -8,6 +8,8 @@
 #
 # Multiline stack traces (indented frames, Caused by:, etc.) are grouped into one
 # record by the multiline parser before the regex transform runs.
+# flush_interval publishes the trailing record after quiet time (default 100ms)
+# so the last log line is not held until the next header or shutdown.
 #
 # Example error with stack trace becomes one JSON payload:
 #   {
@@ -44,6 +46,7 @@ sink:
 parser:
   type: multiline
   start_pattern: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}'
+  flush_interval: 100ms
 
 transform:
   type: regex

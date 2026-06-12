@@ -103,7 +103,7 @@ Default. Each physical line from the watcher becomes one record for the transfor
 
 ### `multiline`
 
-Buffers lines until the next line matches `start_pattern`, then emits the joined record (newline-separated). The emitted event's offset is the byte position after the **last** line in that record. Continuation lines do not emit events or advance watermarks until the record is committed. Incomplete buffers are flushed on pipeline shutdown (graceful stop). See [[Watermarks-and-Restarts#Multiline-parser-and-watermarks|Multiline parser and watermarks]].
+Buffers lines until the next line matches `start_pattern`, then emits the joined record (newline-separated). The emitted event's offset is the byte position after the **last** line in that record. Continuation lines do not emit events or advance watermarks until the record is committed. The trailing record is also idle-flushed after `parser.flush_interval` with no new lines (default `100ms` for multiline; set `0` to disable). Remaining buffers are flushed on pipeline shutdown (graceful stop). See [[Watermarks-and-Restarts#Multiline-parser-and-watermarks|Multiline parser and watermarks]].
 
 ## Built-in enrichers
 

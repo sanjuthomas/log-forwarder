@@ -51,6 +51,7 @@ Config keys do **not** encode units in the name. Use this table when a value's u
 |-----|----------------|---------|-------------|
 | `parser.type` | How physical lines are grouped into records before transform | `line` | `line` for one line = one event; `multiline` for stack traces and multi-line log events |
 | `parser.start_pattern` | Regex marking the **first line** of a new multiline record | — | **Required** when `parser.type: multiline`. Spring Boot: `^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`. See [[Spring Boot Logs]] |
+| `parser.flush_interval` | Idle time before flushing the **trailing** multiline record when no new lines arrive | `100ms` when `parser.type: multiline`; ignored for `line` | Default publishes the last record without waiting for the next header. Set `0` to disable (tail held until next start line or shutdown). Align with `pipeline.publish_batch.flush_interval` if you care about read/publish metric timing |
 
 ---
 

@@ -42,6 +42,7 @@ watch.state.flush_every       -    DONE DONE      -       DONE (E2E-23)
 
 parser.line                   -    -    DONE      -       DONE
 parser.multiline              -    DONE DONE      -       DONE (E2E-1,2,4)
+parser.multiline flush_interval -  DONE -    -       -       DONE (unit)
 
 transform.delimiter           DONE DONE DONE      DONE    DONE (E2E-24)
 transform.regex               DONE DONE DONE      -       DONE
