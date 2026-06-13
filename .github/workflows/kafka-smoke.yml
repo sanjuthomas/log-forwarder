@@ -11,6 +11,9 @@ concurrency:
   group: kafka-smoke-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   kafka-smoke:
     runs-on: ubuntu-latest
