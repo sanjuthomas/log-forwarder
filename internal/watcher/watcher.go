@@ -25,13 +25,13 @@ import (
 // LineEvent carries a single tailed log line and its source file metadata.
 type LineEvent struct {
 	// Path is the absolute path of the source log file.
-	Path   string
+	Path string
 	// Line is the trimmed line bytes without trailing newline characters.
-	Line   []byte
+	Line []byte
 	// Offset is the byte offset in Path after reading this line.
 	Offset int64
 	// Inode is the source file inode at read time (rotation detection).
-	Inode  uint64
+	Inode uint64
 }
 
 // Watcher tails log files matching configured paths and patterns.

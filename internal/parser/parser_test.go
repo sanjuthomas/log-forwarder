@@ -40,8 +40,8 @@ func TestMultilineParserGroupsStackTrace(t *testing.T) {
 	t.Parallel()
 
 	p, err := New(config.ParserConfig{
-		Type:          "multiline",
-		StartPattern:  `^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`,
+		Type:         "multiline",
+		StartPattern: `^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}`,
 	})
 	if err != nil {
 		t.Fatal(err)

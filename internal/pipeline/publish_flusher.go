@@ -18,8 +18,8 @@ type publishFlusher struct {
 
 	flushRunning bool
 	flushDone    chan struct{}
-	flushErr      error
-	shuttingDown  bool
+	flushErr     error
+	shuttingDown bool
 }
 
 func newPublishFlusher(p *Pipeline) *publishFlusher {

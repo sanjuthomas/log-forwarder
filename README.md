@@ -81,6 +81,8 @@ Contributions are welcome — bug reports, documentation, tests, and code. See *
 - How to submit a pull request (branch workflow, tests, CI checks)
 - Coding guidelines and wiki sync notes
 
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). Report security issues privately via [SECURITY.md](SECURITY.md), not public issues.
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).

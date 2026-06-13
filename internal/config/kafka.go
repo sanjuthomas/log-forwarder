@@ -17,18 +17,18 @@ const (
 )
 
 const (
-	KafkaSASLPlain         = "PLAIN"
-	KafkaSASLSCRAMSHA256   = "SCRAM-SHA-256"
-	KafkaSASLSCRAMSHA512   = "SCRAM-SHA-512"
-	KafkaSASLGSSAPI        = "GSSAPI"
-	KafkaSASLOAuthBearer   = "OAUTHBEARER"
+	KafkaSASLPlain       = "PLAIN"
+	KafkaSASLSCRAMSHA256 = "SCRAM-SHA-256"
+	KafkaSASLSCRAMSHA512 = "SCRAM-SHA-512"
+	KafkaSASLGSSAPI      = "GSSAPI"
+	KafkaSASLOAuthBearer = "OAUTHBEARER"
 )
 
 type KafkaConfig struct {
-	Brokers         []string             `yaml:"brokers"`
-	Topic           string               `yaml:"topic"`
-	ConnectTimeout  string               `yaml:"connect_timeout"`
-	Security        *KafkaSecurityConfig `yaml:"security,omitempty"`
+	Brokers        []string             `yaml:"brokers"`
+	Topic          string               `yaml:"topic"`
+	ConnectTimeout string               `yaml:"connect_timeout"`
+	Security       *KafkaSecurityConfig `yaml:"security,omitempty"`
 }
 
 type KafkaSecurityConfig struct {
@@ -45,11 +45,11 @@ type KafkaTLSConfig struct {
 }
 
 type KafkaSASLConfig struct {
-	Mechanism string                `yaml:"mechanism"`
-	Username  string                `yaml:"username"`
-	Password  string                `yaml:"password"`
-	Kerberos  *KafkaKerberosConfig  `yaml:"kerberos,omitempty"`
-	OAuth     *KafkaOAuthConfig     `yaml:"oauth,omitempty"`
+	Mechanism string               `yaml:"mechanism"`
+	Username  string               `yaml:"username"`
+	Password  string               `yaml:"password"`
+	Kerberos  *KafkaKerberosConfig `yaml:"kerberos,omitempty"`
+	OAuth     *KafkaOAuthConfig    `yaml:"oauth,omitempty"`
 }
 
 type KafkaKerberosConfig struct {

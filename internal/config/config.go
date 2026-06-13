@@ -14,17 +14,17 @@ import (
 
 // Config is the root YAML configuration for a forwarder process.
 type Config struct {
-	Watch      WatchConfig      `yaml:"watch"`
-	Sink       SinkConfig       `yaml:"sink"`
-	Parser     ParserConfig     `yaml:"parser"`
-	Transform  TransformConfig  `yaml:"transform"`
-	Enrichers  []EnricherConfig `yaml:"enrichers"`
-	Filter     FilterConfig     `yaml:"filter,omitempty"`
-	Timestamp  TimestampConfig  `yaml:"timestamp,omitempty"`
-	Pipeline   PipelineConfig   `yaml:"pipeline"`
-	Logging    LoggingConfig    `yaml:"logging"`
-	Metrics    MetricsConfig    `yaml:"metrics"`
-	ATC        ATCConfig        `yaml:"atc"`
+	Watch     WatchConfig      `yaml:"watch"`
+	Sink      SinkConfig       `yaml:"sink"`
+	Parser    ParserConfig     `yaml:"parser"`
+	Transform TransformConfig  `yaml:"transform"`
+	Enrichers []EnricherConfig `yaml:"enrichers"`
+	Filter    FilterConfig     `yaml:"filter,omitempty"`
+	Timestamp TimestampConfig  `yaml:"timestamp,omitempty"`
+	Pipeline  PipelineConfig   `yaml:"pipeline"`
+	Logging   LoggingConfig    `yaml:"logging"`
+	Metrics   MetricsConfig    `yaml:"metrics"`
+	ATC       ATCConfig        `yaml:"atc"`
 }
 
 // WatchSource pairs one directory with its filename glob patterns.
@@ -44,10 +44,10 @@ type WatchConfig struct {
 
 // StateConfig controls watermark file location and persistence behavior.
 type StateConfig struct {
-	Path            string `yaml:"path"`
-	FlushInterval   string `yaml:"flush_interval"`
-	FlushEvery      int    `yaml:"flush_every"`
-	ResetOnCorrupt  bool   `yaml:"reset_on_corrupt"`
+	Path           string `yaml:"path"`
+	FlushInterval  string `yaml:"flush_interval"`
+	FlushEvery     int    `yaml:"flush_every"`
+	ResetOnCorrupt bool   `yaml:"reset_on_corrupt"`
 }
 
 // Entries returns the effective watch sources. When sources is set, it is used

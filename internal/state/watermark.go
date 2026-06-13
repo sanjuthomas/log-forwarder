@@ -43,14 +43,14 @@ type fileState struct {
 
 // Store persists per-file byte offsets and inodes for resume-after-restart.
 type Store struct {
-	path              string
-	opts              Options
+	path                 string
+	opts                 Options
 	onPeriodicFlushError func(error)
-	corruptBackupPath string
-	mu                sync.Mutex
-	files             map[string]Entry
-	dirty             bool
-	updatesSinceFlush int
+	corruptBackupPath    string
+	mu                   sync.Mutex
+	files                map[string]Entry
+	dirty                bool
+	updatesSinceFlush    int
 }
 
 // CorruptBackupPath returns the archived path when ResetOnCorrupt recovered from a corrupt file.

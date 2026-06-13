@@ -36,10 +36,10 @@ type forwarderHarness struct {
 }
 
 type harnessOptions struct {
-	sink               sink.Sink
-	metricsEnabled     bool
-	metricsPort        int
-	skipPeriodicFlush  bool
+	sink              sink.Sink
+	metricsEnabled    bool
+	metricsPort       int
+	skipPeriodicFlush bool
 }
 
 func startForwarder(t *testing.T, cfg *config.Config, opts harnessOptions) *forwarderHarness {

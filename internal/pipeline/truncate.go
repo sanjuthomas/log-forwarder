@@ -134,4 +134,3 @@ func largestStringField(record transform.Record, skip ...string) string {
 	}
 	return bestKey
 }
-

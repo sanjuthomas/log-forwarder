@@ -34,17 +34,17 @@ const scopeName = "github.com/sanjuthomas/log-forwarder"
 
 // Collector records forwarder metrics via OpenTelemetry.
 type Collector struct {
-	linesRead            metric.Int64Counter
-	linesReplayed        metric.Int64Counter
-	linesPublished       metric.Int64Counter
-	linesSkipped         metric.Int64Counter
-	linesFiltered        metric.Int64Counter
-	bufferDropped        metric.Int64Counter
-	transformErrors      metric.Int64Counter
-	timestampParseFailed metric.Int64Counter
-	publishFailures      metric.Int64Counter
-	publishRetries       metric.Int64Counter
-	publishTruncations   metric.Int64Counter
+	linesRead                metric.Int64Counter
+	linesReplayed            metric.Int64Counter
+	linesPublished           metric.Int64Counter
+	linesSkipped             metric.Int64Counter
+	linesFiltered            metric.Int64Counter
+	bufferDropped            metric.Int64Counter
+	transformErrors          metric.Int64Counter
+	timestampParseFailed     metric.Int64Counter
+	publishFailures          metric.Int64Counter
+	publishRetries           metric.Int64Counter
+	publishTruncations       metric.Int64Counter
 	publishBatchFlushes      metric.Int64Counter
 	publishBatchSize         metric.Int64Histogram
 	publishBatchBytes        metric.Int64Histogram
@@ -60,11 +60,11 @@ type Collector struct {
 
 // Snapshot supplies live values for gauges exposed on the metrics HTTP server.
 type Snapshot struct {
-	FilesWatched             func() int64
-	BufferDepth              func() int64
-	BufferCapacity           int64
-	PublishBufferActiveBytes func() int64
-	PublishHibernating          func() int64
+	FilesWatched                 func() int64
+	BufferDepth                  func() int64
+	BufferCapacity               int64
+	PublishBufferActiveBytes     func() int64
+	PublishHibernating           func() int64
 	PublishConsecutiveDLQBatches func() int64
 }
 
@@ -399,17 +399,17 @@ func newInstruments(meter metric.Meter, snapshot Snapshot) (*Collector, error) {
 	}
 
 	return &Collector{
-		linesRead:            linesRead,
-		linesReplayed:        linesReplayed,
-		linesPublished:       linesPublished,
-		linesSkipped:         linesSkipped,
-		linesFiltered:        linesFiltered,
-		bufferDropped:        bufferDropped,
-		transformErrors:      transformErrors,
-		timestampParseFailed: timestampParseFailed,
-		publishFailures:      publishFailures,
-		publishRetries:       publishRetries,
-		publishTruncations:  publishTruncations,
+		linesRead:                linesRead,
+		linesReplayed:            linesReplayed,
+		linesPublished:           linesPublished,
+		linesSkipped:             linesSkipped,
+		linesFiltered:            linesFiltered,
+		bufferDropped:            bufferDropped,
+		transformErrors:          transformErrors,
+		timestampParseFailed:     timestampParseFailed,
+		publishFailures:          publishFailures,
+		publishRetries:           publishRetries,
+		publishTruncations:       publishTruncations,
 		publishBatchFlushes:      publishBatchFlushes,
 		publishBatchSize:         publishBatchSize,
 		publishBatchBytes:        publishBatchBytes,

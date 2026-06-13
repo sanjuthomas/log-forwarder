@@ -27,6 +27,8 @@ Include as much of the following as you can:
 
 Do **not** paste secrets (Kafka passwords, TLS keys, API tokens). Redact hostnames if needed.
 
+For **security vulnerabilities**, do not use public issues — follow [SECURITY.md](SECURITY.md).
+
 ## How to submit a pull request
 
 `main` is **protected** — changes land only through pull requests. Direct pushes to `main` are blocked.
@@ -51,15 +53,22 @@ Branch naming examples from this repo:
 
 - **Keep PRs focused** — one logical change per PR is easier to review.
 - **Match existing style** — naming, error wrapping, config validation patterns, test layout.
-- **Add or update tests** when behavior changes. CI runs `go test ./...` and `go test -race ./...`.
+- **Add or update tests** when behavior changes. CI runs formatting, vet, tests (including `-race`), and build checks — see [Review and CI](#6-review-and-ci).
 - **Update docs** when user-facing behavior or config changes (wiki pages under `wiki/`, example configs under `configs/`, or `docs/` as appropriate).
 
 ### 3. Run checks locally
 
+Mirror the CI **build** job before pushing:
+
 ```bash
+gofmt -w .                                    # or: test -z "$(gofmt -l .)"
+./scripts/check-copyright-header.sh
+go vet ./...
+go mod tidy && git diff --exit-code go.mod go.sum
 go test ./...
 go test -race ./...
 go build -o bin/log-forwarder ./cmd/log-forwarder
+go build -o bin/log-forwarder-custom ./examples/custom
 ```
 
 Optional but recommended before Kafka-related changes:
@@ -99,9 +108,11 @@ Every PR to `main` must pass:
 
 | Check | What it runs |
 |-------|----------------|
-| **build** | `go test ./...`, `go test -race ./...`, build main and custom example |
+| **build** | `gofmt`, copyright headers, `go vet`, `go mod tidy`, `go test ./...`, `go test -race ./...`, build main and custom example |
 | **kafka-smoke** | Kafka round-trip and dead-letter smoke scripts |
 | **maintainer-review** | External contributors: `@sanjuthomas` must approve. Maintainer-authored PRs skip this check. |
+
+**Dependency updates:** [Dependabot](https://docs.github.com/en/code-security/dependabot) opens weekly PRs for Go modules and GitHub Actions (see `.github/dependabot.yml`). Security fixes are enabled via GitHub Dependabot security updates.
 
 **Review policy**
 
@@ -172,7 +183,13 @@ Example after a substantial contribution to an existing file:
 
 The SPDX line is always `MIT` — the same license as the project root `LICENSE` file.
 
-### Helper script
+### Helper scripts
+
+Verify headers before opening a PR:
+
+```bash
+./scripts/check-copyright-header.sh
+```
 
 To prepend the standard header to Go files that are missing it:
 
