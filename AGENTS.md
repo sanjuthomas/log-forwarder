@@ -8,7 +8,7 @@ Human contributors: see [CONTRIBUTING.md](CONTRIBUTING.md). Full user docs live 
 
 | Item | Detail |
 |------|--------|
-| Language | Go 1.22+ (`go.mod`, CI, Dockerfile) |
+| Language | Go 1.26+ (`go.mod`, CI, Dockerfile) |
 | License | MIT |
 | Module | `github.com/sanjuthomas/log-forwarder` |
 | Default branch | `main` (protected; PRs only) |
@@ -115,11 +115,10 @@ go build -o bin/log-forwarder-custom ./examples/custom
 ```bash
 ./scripts/lint.sh                    # or ./scripts/lint.sh --fix
 ./scripts/check-copyright-header.sh
+./scripts/check-coverage.sh          # each internal/* package ≥80%
 go mod tidy && git diff --exit-code go.mod go.sum
 go test ./...
 go test -race ./...
-go test ./internal/... -coverprofile=coverage.out -covermode=atomic
-go tool cover -func=coverage.out   # each internal/* package ≥80%
 go build -o bin/log-forwarder ./cmd/log-forwarder
 go build -o bin/log-forwarder-custom ./examples/custom
 ```
@@ -146,9 +145,10 @@ go test ./internal/config/ -v
 
 | Job | Purpose |
 |-----|---------|
-| **build** | golangci-lint, copyright headers, `go mod tidy`, tests, `-race`, builds |
+| **build** | golangci-lint, copyright headers, `go mod tidy`, tests, `-race`, **coverage gate**, **govulncheck**, builds |
 | **kafka-smoke** | Kafka round-trip + dead-letter Docker smoke |
 | **maintainer-review** | External contributors need `@sanjuthomas` approval |
+| **stale** | Inactive issues/PRs marked stale after 60 days |
 
 ## Documentation map
 
@@ -183,7 +183,7 @@ go test ./internal/config/ -v
 | OpenTelemetry partial upgrades | Upgrade OTel modules together; fix `semconv` import |
 | Ignoring watermark semantics in publish path | Watermarks advance only after successful publish (see wiki) |
 | `pipeline.on_full: drop` as default | Default is `block`; drop loses data permanently |
-| Merging with a package below 80% coverage | Run `go test ./internal/... -coverprofile=coverage.out` and add tests |
+| Merging with a package below 80% coverage | Run `./scripts/check-coverage.sh` and add tests |
 
 ## Dependabot notes
 

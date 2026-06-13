@@ -1,0 +1,11 @@
+# GitHub code owners
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+* @sanjuthomas
+
+/internal/ @sanjuthomas
+/wiki/ @sanjuthomas
+/.github/ @sanjuthomas
+/scripts/ @sanjuthomas
+/AGENTS.md @sanjuthomas
+/CONTRIBUTING.md @sanjuthomas

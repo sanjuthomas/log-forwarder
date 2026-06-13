@@ -16,7 +16,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25"
+          go-version: "1.26.4"
           cache-dependency-path: go.sum
 
       - name: Download dependencies
@@ -40,9 +40,15 @@ jobs:
         run: go test ./...
 
       # Race detector on all packages (watcher, pipeline, integration, metrics, state).
-      # No exclusions: go test -race ./... passes locally on Go 1.25+.
+      # No exclusions: go test -race ./... passes locally on Go 1.26+.
       - name: Run tests with race detector
         run: go test -race ./...
+
+      - name: Check test coverage
+        run: ./scripts/check-coverage.sh
+
+      - name: Run govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
       - name: Build log-forwarder
         run: go build -o bin/log-forwarder ./cmd/log-forwarder

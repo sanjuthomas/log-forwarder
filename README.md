@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://github.com/sanjuthomas/log-forwarder/actions/workflows/ci.yml"><img src="https://github.com/sanjuthomas/log-forwarder/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License"></a>
-  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
+  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white" alt="Go 1.26+"></a>
 </p>
 
 **log-forwarder** is a small, low-footprint alternative to Fluent Bit — written in Go, MIT-licensed, and built for teams that want a simple file → structured JSON → sink pipeline without a heavy agent.
@@ -15,6 +15,17 @@ Download the source, add your sink, and run. It tails log files, transforms and 
 **Small agent. Your sink. Your rules.**
 
 **Documentation:** [GitHub Wiki](https://github.com/sanjuthomas/log-forwarder/wiki) — install, configuration, sinks, watermarks, monitoring, deployment, and custom extensions.
+
+## Why log-forwarder?
+
+| | log-forwarder | Typical heavy agents (Fluent Bit, Fluentd, Vector) |
+|--|---------------|-----------------------------------------------------|
+| **Footprint** | Single static Go binary (~15 MB) | Larger images, more moving parts |
+| **Scope** | File → JSON → one sink per process | Broad input/output plugins, pipelines |
+| **Ops model** | Watermarks, dead letter, metrics built in | Varies; often more config surface |
+| **Extension** | Custom binary (`examples/custom/`) | Plugin SDK / Lua / WASM (product-dependent) |
+
+Use log-forwarder when you want a **small, MIT-licensed** tail-and-ship agent without operating a full observability stack. See [ROADMAP.md](ROADMAP.md) for direction and [SUPPORT.md](SUPPORT.md) for help channels.
 
 ## Quick start
 
@@ -48,6 +59,7 @@ See [Installation and First Run](https://github.com/sanjuthomas/log-forwarder/wi
 | Repo layout | [Development](https://github.com/sanjuthomas/log-forwarder/wiki/Development) |
 | Example configs | [Example Configs](https://github.com/sanjuthomas/log-forwarder/wiki/Example-Configs) |
 | Troubleshooting | [Troubleshooting](https://github.com/sanjuthomas/log-forwarder/wiki/Troubleshooting) |
+| Roadmap & support | [ROADMAP.md](ROADMAP.md), [SUPPORT.md](SUPPORT.md), [CHANGELOG.md](CHANGELOG.md) |
 
 ## Repository resources
 
@@ -61,7 +73,11 @@ See [Installation and First Run](https://github.com/sanjuthomas/log-forwarder/wi
 | [`docs/production-battle-test.txt`](docs/production-battle-test.txt) | Staging / battle-test checklist |
 | [`docs/docker.md`](docs/docker.md) | Container and sidecar notes |
 | [`wiki/`](wiki/) | Wiki source (auto-synced to GitHub Wiki on merge to `main`; run `./scripts/sync-wiki.sh` locally to preview) |
-| [`scripts/`](scripts/) | Docker and Kafka smoke tests |
+| [`scripts/`](scripts/) | Lint, coverage gate, copyright check, Docker and Kafka smoke tests |
+| [`CHANGELOG.md`](CHANGELOG.md) | Notable changes by version |
+| [`ROADMAP.md`](ROADMAP.md) | Planned direction and out-of-scope items |
+| [`SUPPORT.md`](SUPPORT.md) | Where to ask questions vs file bugs |
+| [`AGENTS.md`](AGENTS.md) | Conventions for AI coding agents and advanced contributors |
 
 ## Docker
 
@@ -78,7 +94,7 @@ See [Docker](https://github.com/sanjuthomas/log-forwarder/wiki/Docker) on the wi
 Contributions are welcome — bug reports, documentation, tests, and code. See **[CONTRIBUTING.md](CONTRIBUTING.md)** for:
 
 - How to [open an issue](https://github.com/sanjuthomas/log-forwarder/issues/new/choose) (bug, feature, docs)
-- How to submit a pull request (branch workflow, tests, CI checks)
+- How to submit a pull request (branch workflow, tests, CI checks including **≥80% coverage** per `internal/*` package)
 - Coding guidelines and wiki sync notes
 
 This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). Report security issues privately via [SECURITY.md](SECURITY.md), not public issues.
