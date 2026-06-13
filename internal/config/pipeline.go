@@ -15,14 +15,14 @@ type PublishRetryConfig struct {
 }
 
 const (
-	DefaultMaxPublishBytes           = 1048576 // 1 MiB, aligned with Kafka message.max.bytes default
-	DefaultTruncateField             = "message"
-	DefaultTruncateSuffix            = "… [truncated]"
-	DefaultPublishBatchMaxBytes      = 1048576
-	DefaultPublishBatchFlushInterval = 100 * time.Millisecond
-	OnFlushFailureHibernate              = "hibernate"
-	OnFlushFailureDeadLetter             = "dead_letter"
-	DefaultHibernateWakeInterval         = 10 * time.Minute
+	DefaultMaxPublishBytes                 = 1048576 // 1 MiB, aligned with Kafka message.max.bytes default
+	DefaultTruncateField                   = "message"
+	DefaultTruncateSuffix                  = "… [truncated]"
+	DefaultPublishBatchMaxBytes            = 1048576
+	DefaultPublishBatchFlushInterval       = 100 * time.Millisecond
+	OnFlushFailureHibernate                = "hibernate"
+	OnFlushFailureDeadLetter               = "dead_letter"
+	DefaultHibernateWakeInterval           = 10 * time.Minute
 	DefaultDeadLetterMaxConsecutiveBatches = 3
 )
 
@@ -58,10 +58,10 @@ func (c HibernateConfig) WakeIntervalDuration() time.Duration {
 }
 
 type PublishBatchConfig struct {
-	MaxBytes       int             `yaml:"max_bytes"`
-	FlushInterval  string          `yaml:"flush_interval"`
-	OnFlushFailure string          `yaml:"on_flush_failure"`
-	MaxAttempts    int             `yaml:"max_attempts"`
+	MaxBytes       int              `yaml:"max_bytes"`
+	FlushInterval  string           `yaml:"flush_interval"`
+	OnFlushFailure string           `yaml:"on_flush_failure"`
+	MaxAttempts    int              `yaml:"max_attempts"`
 	Hibernate      HibernateConfig  `yaml:"hibernate"`
 	DeadLetter     DeadLetterConfig `yaml:"dead_letter"`
 }
@@ -113,14 +113,14 @@ func (c PublishBatchConfig) FlushIntervalDuration() time.Duration {
 }
 
 type PipelineConfig struct {
-	BufferSize       int                `yaml:"buffer_size"`
-	OnFull           string             `yaml:"on_full"`
-	PublishTimeout   string             `yaml:"publish_timeout"`
-	PublishRetry     PublishRetryConfig `yaml:"publish_retry"`
-	PublishBatch     PublishBatchConfig `yaml:"publish_batch"`
-	MaxPublishBytes  int                `yaml:"max_publish_bytes"`
-	TruncateField    string             `yaml:"truncate_field"`
-	TruncateSuffix   string             `yaml:"truncate_suffix"`
+	BufferSize      int                `yaml:"buffer_size"`
+	OnFull          string             `yaml:"on_full"`
+	PublishTimeout  string             `yaml:"publish_timeout"`
+	PublishRetry    PublishRetryConfig `yaml:"publish_retry"`
+	PublishBatch    PublishBatchConfig `yaml:"publish_batch"`
+	MaxPublishBytes int                `yaml:"max_publish_bytes"`
+	TruncateField   string             `yaml:"truncate_field"`
+	TruncateSuffix  string             `yaml:"truncate_suffix"`
 }
 
 func (c PipelineConfig) TruncateFieldOrDefault() string {

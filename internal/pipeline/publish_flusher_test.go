@@ -21,11 +21,11 @@ import (
 )
 
 type slowBatchSink struct {
-	delay      time.Duration
-	mu         sync.Mutex
-	inFlight   int32
+	delay       time.Duration
+	mu          sync.Mutex
+	inFlight    int32
 	maxInFlight int32
-	batches    [][][]byte
+	batches     [][][]byte
 }
 
 func (s *slowBatchSink) Publish(ctx context.Context, payload []byte) error {

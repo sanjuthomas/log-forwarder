@@ -16,10 +16,10 @@ const (
 )
 
 type TimestampConfig struct {
-	Field            string `yaml:"field"`
-	Format           string `yaml:"format"`
-	DefaultTimezone  string `yaml:"default_timezone"`
-	Output           string `yaml:"output"`
+	Field           string `yaml:"field"`
+	Format          string `yaml:"format"`
+	DefaultTimezone string `yaml:"default_timezone"`
+	Output          string `yaml:"output"`
 }
 
 func (c TimestampConfig) Enabled() bool {

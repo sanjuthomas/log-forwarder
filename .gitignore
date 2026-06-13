@@ -5,3 +5,6 @@ bin/
 output/
 docker/output/
 .log-forwarder/
+coverage.out
+coverage-*.out
+*.test

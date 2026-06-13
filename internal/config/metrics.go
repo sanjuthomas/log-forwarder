@@ -10,19 +10,19 @@ import (
 )
 
 type MetricsConfig struct {
-	Enabled    bool             `yaml:"enabled"`
-	Host       string           `yaml:"host"`
-	Port       int              `yaml:"port"`
-	Path       string           `yaml:"path"`
-	Readiness  ReadinessConfig  `yaml:"readiness"`
+	Enabled   bool            `yaml:"enabled"`
+	Host      string          `yaml:"host"`
+	Port      int             `yaml:"port"`
+	Path      string          `yaml:"path"`
+	Readiness ReadinessConfig `yaml:"readiness"`
 }
 
 type ReadinessConfig struct {
-	Path              string  `yaml:"path"`
-	BufferThreshold   float64 `yaml:"buffer_threshold"`
-	SinkCheck         *bool   `yaml:"sink_check"`
-	RequireFiles      bool    `yaml:"require_files"`
-	SinkCheckTimeout  string  `yaml:"sink_check_timeout"`
+	Path             string  `yaml:"path"`
+	BufferThreshold  float64 `yaml:"buffer_threshold"`
+	SinkCheck        *bool   `yaml:"sink_check"`
+	RequireFiles     bool    `yaml:"require_files"`
+	SinkCheckTimeout string  `yaml:"sink_check_timeout"`
 }
 
 func (c MetricsConfig) Addr() string {

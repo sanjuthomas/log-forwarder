@@ -94,8 +94,8 @@ func TestPipelinePublishRetryExhaustsMaxAttempts(t *testing.T) {
 
 	lines := make(chan watcher.LineEvent, 1)
 	lines <- watcher.LineEvent{
-		Path:   "/tmp/test.log",
-		Line:   []byte("2024-01-01T00:00:00Z\tINFO\thello"),
+		Path: "/tmp/test.log",
+		Line: []byte("2024-01-01T00:00:00Z\tINFO\thello"),
 	}
 	close(lines)
 
@@ -132,8 +132,8 @@ func TestPipelinePublishTimeout(t *testing.T) {
 
 	lines := make(chan watcher.LineEvent, 1)
 	lines <- watcher.LineEvent{
-		Path:   "/tmp/test.log",
-		Line:   []byte("2024-01-01T00:00:00Z\tINFO\thello"),
+		Path: "/tmp/test.log",
+		Line: []byte("2024-01-01T00:00:00Z\tINFO\thello"),
 	}
 	close(lines)
 
