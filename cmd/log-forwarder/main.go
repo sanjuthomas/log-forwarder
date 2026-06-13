@@ -41,7 +41,7 @@ func main() {
 		slog.New(slog.NewTextHandler(os.Stderr, nil)).Error("create logger", "error", err)
 		os.Exit(1)
 	}
-	defer logCloser.Close()
+	defer func() { _ = logCloser.Close() }()
 
 	wmOpts := watermarkOptions(cfg, *resetWatermarks)
 	watermarks, err := state.NewStore(cfg.StatePath(), wmOpts)

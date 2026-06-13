@@ -41,7 +41,7 @@ func TestDeadLettersHandlerReturnsMetadataOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /deadletters error = %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
@@ -82,7 +82,7 @@ func TestDeadLettersHandlerNotRegisteredWhenDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /deadletters error = %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
 	}

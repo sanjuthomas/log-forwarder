@@ -45,7 +45,7 @@ func (h *httpNoauthSink) Check(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("http check: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
@@ -94,7 +94,7 @@ func (h *httpNoauthSink) post(ctx context.Context, body []byte, contentType stri
 	if err != nil {
 		return fmt.Errorf("http publish: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))

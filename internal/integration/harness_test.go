@@ -351,7 +351,7 @@ func countJSONLRecords(path string) (int, error) {
 		}
 		return 0, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	count := 0
 	scanner := bufio.NewScanner(f)
@@ -408,6 +408,8 @@ func waitForRecordCount(t *testing.T, path string, want int) {
 
 // waitForRecordCountFlush stops the forwarder on timeout so the multiline parser
 // flushes its trailing buffer (same as process shutdown in production).
+//
+//nolint:unused // harness helper documented in docs/integration-test-cases.txt
 func waitForRecordCountFlush(t *testing.T, h *forwarderHarness, path string, want int) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
