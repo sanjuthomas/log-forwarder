@@ -15,10 +15,6 @@ type publishBuffer struct {
 	bytes int
 }
 
-func newPublishBuffer() *publishBuffer {
-	return &publishBuffer{}
-}
-
 func (b *publishBuffer) len() int {
 	return len(b.items)
 }

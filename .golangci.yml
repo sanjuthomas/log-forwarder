@@ -1,0 +1,23 @@
+# golangci-lint v2 — formatting (gofumpt/goimports) and static analysis (staticcheck).
+# Aligns with the Google Go Style Guide: mandatory formatting plus vet/staticcheck-style checks.
+# https://google.github.io/styleguide/go/guide
+# https://golangci-lint.run/docs/formatters/configuration/
+version: "2"
+
+run:
+  timeout: 5m
+  go: "1.22"
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    gofumpt:
+      module-path: github.com/sanjuthomas/log-forwarder
+      extra-rules: true
+
+linters:
+  default: standard
+  enable:
+    - staticcheck

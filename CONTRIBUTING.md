@@ -61,15 +61,22 @@ Branch naming examples from this repo:
 Mirror the CI **build** job before pushing:
 
 ```bash
-gofmt -w .                                    # or: test -z "$(gofmt -l .)"
+./scripts/lint.sh              # or: ./scripts/lint.sh --fix
 ./scripts/check-copyright-header.sh
-go vet ./...
 go mod tidy && git diff --exit-code go.mod go.sum
 go test ./...
 go test -race ./...
 go build -o bin/log-forwarder ./cmd/log-forwarder
 go build -o bin/log-forwarder-custom ./examples/custom
 ```
+
+Install golangci-lint once:
+
+```bash
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+```
+
+`./scripts/lint.sh` runs **gofumpt**, **goimports**, and **staticcheck** (via golangci-lint) — the same checks enforced in CI. See [Google's Go Style Guide](https://google.github.io/styleguide/go/guide) and `.golangci.yml`.
 
 Optional but recommended before Kafka-related changes:
 
@@ -108,7 +115,7 @@ Every PR to `main` must pass:
 
 | Check | What it runs |
 |-------|----------------|
-| **build** | `gofmt`, copyright headers, `go vet`, `go mod tidy`, `go test ./...`, `go test -race ./...`, build main and custom example |
+| **build** | golangci-lint (gofumpt, goimports, staticcheck, standard linters), copyright headers, `go mod tidy`, `go test ./...`, `go test -race ./...`, build main and custom example |
 | **kafka-smoke** | Kafka round-trip and dead-letter smoke scripts |
 | **maintainer-review** | External contributors: `@sanjuthomas` must approve. Maintainer-authored PRs skip this check. |
 

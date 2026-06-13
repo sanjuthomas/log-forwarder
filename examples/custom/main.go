@@ -127,7 +127,7 @@ func main() {
 		logger.Error("create sink", "type", cfg.Sink.Type, "error", err)
 		os.Exit(1)
 	}
-	defer recordSink.Close()
+	defer func() { _ = recordSink.Close() }()
 
 	if checker, ok := recordSink.(sink.Checker); ok {
 		pingCtx, cancel := context.WithTimeout(context.Background(), cfg.SinkConnectTimeout())

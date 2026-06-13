@@ -94,7 +94,7 @@ func (w *Watcher) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("create fs watcher: %w", err)
 	}
-	defer fsWatcher.Close()
+	defer func() { _ = fsWatcher.Close() }()
 
 	watchPaths, err := w.watchPaths()
 	if err != nil {

@@ -89,7 +89,7 @@ func (c *Client) do(ctx context.Context, method string, inst Instance) error {
 	if err != nil {
 		return fmt.Errorf("atc %s: %w", method, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))

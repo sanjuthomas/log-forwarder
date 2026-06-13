@@ -563,7 +563,7 @@ func (c *Collector) RecordDeadLetterBatch(ctx context.Context, _ int) {
 	c.publishDeadLetterBatches.Add(ctx, 1)
 }
 
-func (c *Collector) RecordPublishBatchFlush(ctx context.Context, reason, result string, count int, bytes int) {
+func (c *Collector) RecordPublishBatchFlush(ctx context.Context, reason, result string, count, bytes int) {
 	if c == nil {
 		return
 	}

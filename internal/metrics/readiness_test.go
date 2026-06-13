@@ -164,7 +164,7 @@ func TestNewRegistersReadyHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /ready error = %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /ready status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
