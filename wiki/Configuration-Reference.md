@@ -406,7 +406,7 @@ filter:
       value: billing
 ```
 
-See [`configs/example-filter.yaml`](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-filter.yaml) and [`configs/example-docker-filter.yaml`](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-docker-filter.yaml). Register custom predicate types with `filter.Register` (see [[Custom-Extensions#Custom-filter|Custom filter]]).
+See [`configs/example-filter.yaml`](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-filter.yaml), [`configs/example-vendor-filter-kafka.yaml`](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-vendor-filter-kafka.yaml) (vendor DEBUG noise — [[Filtering Vendor Noise]]), and [`configs/example-docker-filter.yaml`](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-docker-filter.yaml). Register custom predicate types with `filter.Register` (see [[Custom-Extensions#Custom-filter|Custom filter]]).
 
 ## `enrichers`
 

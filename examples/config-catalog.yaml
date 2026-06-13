@@ -276,7 +276,7 @@ feature_index:
 
   predicate_filter:
     description: filter block — drop records before enrich/publish; watermark still advances
-    configs: [example-filter, example-docker-filter, example-docker-kafka, example-docker-kafka-deadletter]
+    configs: [example-filter, example-vendor-filter-kafka, example-docker-filter, example-docker-kafka, example-docker-kafka-deadletter]
 
   multiline_parser:
     description: parser.type multiline — stack traces as single records
@@ -400,6 +400,31 @@ configs:
         status_interval: default
     features: [watermark_file, predicate_filter, pipeline_buffer_size, pipeline_on_full_block, metrics_http, logging_status_interval]
     tags: [file, filter, integration]
+
+  - id: example-vendor-filter-kafka
+    path: configs/example-vendor-filter-kafka.yaml
+    category: general
+    description: Vendor appliance tab-delimited logs — INFO/WARN/ERROR filter to Kafka (drop DEBUG ingest cost)
+    sink: kafka
+    parser: line
+    transform: delimiter
+    settings:
+      watch:
+        state_path: /var/lib/log-forwarder/acme-gateway-watermarks.json
+      filter:
+        match: any
+        levels: [INFO, WARN, ERROR]
+      pipeline:
+        buffer_size: 4096
+        on_full: block
+      metrics:
+        enabled: true
+        port: 8080
+      logging:
+        status_interval: default
+    features: [watermark_file, predicate_filter, pipeline_buffer_size, pipeline_on_full_block, metrics_http, logging_status_interval]
+    related: [example-filter, example-spring-boot-kafka]
+    tags: [kafka, filter, vendor, delimiter]
 
   - id: example-spring-boot-kafka
     path: configs/example-spring-boot-kafka.yaml

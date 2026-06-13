@@ -3,6 +3,7 @@
 - [[Home]]
 - [[Installation and First Run]]
 - [[How It Works]]
+- [[Filtering Vendor Noise]]
 - [[Configuration Guide]]
 - [[Configuration-Reference]]
 - [[Config-Catalog]]

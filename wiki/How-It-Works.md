@@ -19,7 +19,7 @@ Log files  →  read new lines  →  group into events  →  parse fields  →  
 
 Each successfully processed event is published as **one JSON object**. With the file sink, that is one **JSONL** line (JSON + newline).
 
-Filtered records are **not** enriched or published, but watermarks still advance so tailing does not stall on noise you chose to drop. See [[Built-in-Components#Built-in filters|Built-in filters]] and [[Configuration-Reference#filter|filter config]].
+Filtered records are **not** enriched or published, but watermarks still advance so tailing does not stall on noise you chose to drop. See [[Built-in-Components#Built-in filters|Built-in filters]], [[Configuration-Reference#filter|filter config]], and [[Filtering Vendor Noise]] for a cost-saving vendor-appliance walkthrough.
 
 ## One process, one sink
 
