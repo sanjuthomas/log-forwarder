@@ -63,6 +63,7 @@ Mirror the CI **build** job before pushing:
 ```bash
 ./scripts/lint.sh              # or: ./scripts/lint.sh --fix
 ./scripts/check-copyright-header.sh
+./scripts/check-coverage.sh    # each internal/* package ≥80% (excludes integration)
 go mod tidy && git diff --exit-code go.mod go.sum
 go test ./...
 go test -race ./...
@@ -77,6 +78,8 @@ go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 ```
 
 `./scripts/lint.sh` runs **gofumpt**, **goimports**, and **staticcheck** (via golangci-lint) — the same checks enforced in CI. See [Google's Go Style Guide](https://google.github.io/styleguide/go/guide) and `.golangci.yml`.
+
+**Test coverage:** every `internal/*` package with production code must stay at **≥80%** statement coverage (`cmd/`, `examples/`, and `internal/integration/` are excluded). CI runs `./scripts/check-coverage.sh`; see also [AGENTS.md](AGENTS.md) for agent-oriented conventions.
 
 Optional but recommended before Kafka-related changes:
 
@@ -115,9 +118,10 @@ Every PR to `main` must pass:
 
 | Check | What it runs |
 |-------|----------------|
-| **build** | golangci-lint (gofumpt, goimports, staticcheck, standard linters), copyright headers, `go mod tidy`, `go test ./...`, `go test -race ./...`, build main and custom example |
+| **build** | golangci-lint (gofumpt, goimports, staticcheck, standard linters), copyright headers, `go mod tidy`, `go test ./...`, `go test -race ./...`, **coverage gate (≥80% per `internal/*` package)**, **govulncheck**, build main and custom example |
 | **kafka-smoke** | Kafka round-trip and dead-letter smoke scripts |
 | **maintainer-review** | External contributors: `@sanjuthomas` must approve. Maintainer-authored PRs skip this check. |
+| **stale** (scheduled) | Marks inactive issues and PRs stale after 60 days; closes after 14 more days unless exempt (`pinned`, `security`) |
 
 **Dependency updates:** [Dependabot](https://docs.github.com/en/code-security/dependabot) opens weekly PRs for Go modules and GitHub Actions (see `.github/dependabot.yml`). Security fixes are enabled via GitHub Dependabot security updates.
 
@@ -217,6 +221,8 @@ Maintainers tag releases (`v*`) on `main`; Docker images publish to `sanjuthomas
 ## Questions?
 
 Open a [Discussion](https://github.com/sanjuthomas/log-forwarder/discussions) or comment on a related issue if you are unsure whether to proceed. We would rather align on approach early than review a large surprise PR.
+
+See also [SUPPORT.md](SUPPORT.md) for where to ask questions vs file bugs, and [ROADMAP.md](ROADMAP.md) for planned direction.
 
 ## License
 

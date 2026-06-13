@@ -16,6 +16,9 @@ Closes #
 
 <!-- How did you verify this? Check what applies. -->
 
+- [ ] `./scripts/lint.sh`
+- [ ] `./scripts/check-copyright-header.sh`
+- [ ] `./scripts/check-coverage.sh` (when changing `internal/*` code)
 - [ ] `go test ./...`
 - [ ] `go test -race ./...`
 - [ ] Integration / smoke tests (describe below)

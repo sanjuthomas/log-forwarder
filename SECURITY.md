@@ -2,15 +2,17 @@
 
 ## Supported versions
 
-Security fixes are applied to the default branch (`main`) and backported to tagged
-releases when practical. There are no older release lines under active support
-until the first semver tag is published.
+Security fixes are applied to the default branch (`main`) and, when practical,
+backported to the **latest tagged release**. Older tags are not supported.
 
 | Version / branch | Supported |
 |------------------|-----------|
-| `main`           | Yes       |
-| Latest release tag | Yes (when available) |
-| Older tags       | No        |
+| `main` | Yes |
+| Latest tag (`v0.5.0` at time of writing) | Yes |
+| Older tags (`v0.1.0`–`v0.4.0`) | No |
+
+Docker images tagged `:latest` and version tags (e.g. `:v0.5.0`) follow the same
+policy — use the latest tag or `main`-based image for security fixes.
 
 ## Reporting a vulnerability
 
@@ -50,6 +52,6 @@ When deploying log-forwarder, follow usual operational hygiene:
 - Do not commit credentials in YAML configs; use environment variables or secret
   stores.
 - Restrict network access to metrics and health endpoints.
-- Keep Docker images and Go dependencies up to date (Dependabot PRs on this repo).
+- Keep Docker images and Go dependencies up to date (Dependabot PRs and `govulncheck` in CI).
 
 For non-security bugs, use the [bug report issue template](https://github.com/sanjuthomas/log-forwarder/issues/new/choose).
