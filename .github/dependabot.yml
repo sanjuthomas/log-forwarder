@@ -6,9 +6,19 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
+      # OpenTelemetry packages share semconv/schema requirements — review together.
+      opentelemetry:
+        patterns:
+          - "go.opentelemetry.io/*"
+        update-types:
+          - minor
+          - patch
       go-minor-patch:
         patterns:
-          - "*"
+          - "github.com/*"
+          - "golang.org/*"
+          - "google.golang.org/*"
+          - "gopkg.in/*"
         update-types:
           - minor
           - patch
