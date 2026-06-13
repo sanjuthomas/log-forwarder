@@ -137,3 +137,41 @@ func TestListEntriesSkipsTempFiles(t *testing.T) {
 		t.Fatalf("len(entries) = %d, want 0", len(entries))
 	}
 }
+
+func TestListEntriesSkipsSubdirectories(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "nested"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := ListEntries(dir)
+	if err != nil {
+		t.Fatalf("ListEntries() error = %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("len(entries) = %d, want 0", len(entries))
+	}
+}
+
+func TestListEntriesUsesFilenameFromSidecarWhenMissing(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	filename := "2026-01-01T00-00-00Z_abcd.jsonl"
+	if err := os.WriteFile(filepath.Join(dir, filename), []byte(`{"line":1}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	meta := metaPath(dir, strings.TrimSuffix(filename, ".jsonl"))
+	if err := os.WriteFile(meta, []byte(`{"created_at":"2026-01-01T00:00:00Z","event_count":1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := ListEntries(dir)
+	if err != nil {
+		t.Fatalf("ListEntries() error = %v", err)
+	}
+	if len(entries) != 1 || entries[0].Filename != filename {
+		t.Fatalf("entries = %+v, want filename %q", entries, filename)
+	}
+}
