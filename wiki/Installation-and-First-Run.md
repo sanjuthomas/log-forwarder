@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- **Go 1.22+** (only if you build from source)
+- **Go 1.25+** (only if you build from source)
 - Read access to the directories where your applications write logs
 - A working **sink destination**:
   - Kafka broker and topic, or

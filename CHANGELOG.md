@@ -15,11 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Nothing yet.
+- Minimum Go version raised to **1.25** (Dockerfile, CI, and `go.mod`).
+- OpenTelemetry dependencies upgraded to v1.44 / contrib v0.69; semconv aligned to v1.41.0.
+- Dependabot Go groups split (OpenTelemetry vs other modules) for easier review.
 
 ### Fixed
 
-- Nothing yet.
+- OpenTelemetry resource schema mismatch after dependency upgrades (`semconv` v1.26 → v1.41.0).
+- Docker and kafka-smoke CI failures when `go.mod` requires Go 1.25+ but the image used Go 1.22.
 
 ---
 

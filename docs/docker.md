@@ -173,7 +173,7 @@ You can also run the workflow manually from the Actions tab (**workflow_dispatch
 The published image is built from `cmd/log-forwarder` (built-in parsers, transformers, enrichers, sinks only). For custom `sink.Register` / `transform.Register` code, build your own image:
 
 ```dockerfile
-FROM golang:1.22-alpine AS build
+FROM golang:1.25-alpine AS build
 WORKDIR /src
 COPY . .
 RUN CGO_ENABLED=0 go build -o /out/log-forwarder ./examples/custom
