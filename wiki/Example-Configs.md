@@ -11,6 +11,13 @@ Copy these from the [configs/](https://github.com/sanjuthomas/log-forwarder/tree
 | [example-file.yaml](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-file.yaml) | File | Tab-delimited | JSONL to `./output/` |
 | [example-http-noauth.yaml](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-http-noauth.yaml) | HTTP | Tab-delimited | POST to localhost ingest |
 
+## Vendor noise / ingest cost
+
+| Config | Sink | Filter | Notes |
+|--------|------|--------|-------|
+| [example-vendor-filter-kafka.yaml](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-vendor-filter-kafka.yaml) | Kafka | INFO, WARN, ERROR | Third-party DEBUG-heavy appliance — see [[Filtering Vendor Noise]] |
+| [example-filter.yaml](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-filter.yaml) | File | WARN, ERROR | Integration-tested; local file sink |
+
 ## Spring Boot (default Logback console)
 
 | Config | Sink |

@@ -49,6 +49,7 @@ See [Installation and First Run](https://github.com/sanjuthomas/log-forwarder/wi
 | Config key catalog (what / when) | [Config-Catalog](https://github.com/sanjuthomas/log-forwarder/wiki/Config-Catalog) |
 | Kafka, file, HTTP sinks | [Choosing a Sink](https://github.com/sanjuthomas/log-forwarder/wiki/Choosing-a-Sink) |
 | Spring Boot / multiline logs | [Spring Boot Logs](https://github.com/sanjuthomas/log-forwarder/wiki/Spring-Boot-Logs) |
+| Filter vendor DEBUG noise (ingest cost) | [Filtering Vendor Noise](https://github.com/sanjuthomas/log-forwarder/wiki/Filtering-Vendor-Noise) |
 | Watermarks, rotation, restarts | [Watermarks and Restarts](https://github.com/sanjuthomas/log-forwarder/wiki/Watermarks-and-Restarts) |
 | Built-in components | [Built-in-Components](https://github.com/sanjuthomas/log-forwarder/wiki/Built-in-Components) |
 | Custom parsers, sinks, filters | [Custom-Extensions](https://github.com/sanjuthomas/log-forwarder/wiki/Custom-Extensions) |

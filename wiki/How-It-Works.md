@@ -3,7 +3,7 @@
 Think of log-forwarder as a small pipeline that runs on the machine where log files live (or where they are mounted).
 
 ```
-Log files  →  read new lines  →  group into events  →  parse fields  →  add metadata  →  publish JSON
+Log files  →  read new lines  →  group into events  →  parse fields  →  filter  →  add metadata  →  publish JSON
 ```
 
 ## The stages (in order)
@@ -13,10 +13,13 @@ Log files  →  read new lines  →  group into events  →  parse fields  →  
 | **Watcher** | Finds log files, tails new lines, handles rotation | `watch` |
 | **Parser** | Groups physical lines into one logical event (important for stack traces) | `parser` |
 | **Transform** | Turns each event into named fields (timestamp, level, message, …) | `transform` |
+| **Filter** | Drops records that do not match predicate rules (optional; omit to pass all) | `filter` |
 | **Enrich** | Adds extra fields (hostname, app name, environment) | `enrichers` |
 | **Sink** | Sends one JSON object to your destination | `sink` |
 
 Each successfully processed event is published as **one JSON object**. With the file sink, that is one **JSONL** line (JSON + newline).
+
+Filtered records are **not** enriched or published, but watermarks still advance so tailing does not stall on noise you chose to drop. See [[Built-in-Components#Built-in filters|Built-in filters]], [[Configuration-Reference#filter|filter config]], and [[Filtering Vendor Noise]] for a cost-saving vendor-appliance walkthrough.
 
 ## One process, one sink
 
@@ -67,5 +70,6 @@ If a line cannot be parsed and `on_error: wrap` is set, you still get a record w
 ## Read next
 
 - [[Configuration Guide]] — map each stage to YAML
+- [[Built-in-Components]] — parsers, transforms, filters, enrichers, sinks
 - [[Choosing a Sink]] — pick Kafka, file, or HTTP
 - [[Spring Boot Logs]] — multiline stack traces
