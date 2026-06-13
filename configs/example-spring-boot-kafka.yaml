@@ -76,6 +76,7 @@ metrics:
   path: /metrics
 
 # log-forwarder-atc integration (optional):
+#   Wiki: https://github.com/sanjuthomas/log-forwarder/wiki/Log-Forwarder-ATC
 #   - After startup: PUT registers hostname, metrics.port, process_id, UTC timestamp.
 #   - On shutdown (SIGINT/SIGTERM): DELETE deregisters the same instance.
 #   - While running: no ATC traffic — the controller polls GET /health and GET /ready here.

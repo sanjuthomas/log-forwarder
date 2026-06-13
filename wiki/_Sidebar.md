@@ -4,6 +4,7 @@
 - [[Installation and First Run]]
 - [[How It Works]]
 - [[Filtering Vendor Noise]]
+- [[Log Forwarder ATC]]
 - [[Configuration Guide]]
 - [[Configuration-Reference]]
 - [[Config-Catalog]]

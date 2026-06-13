@@ -531,7 +531,7 @@ When enabled, the scrape endpoint includes forwarder counters (lines read/publis
 
 ## `atc`
 
-Optional registration with **log-forwarder-atc**. **Disabled by default.**
+Optional registration with **[log-forwarder-atc](https://github.com/sanjuthomas/log-forwarder-atc)**. **Disabled by default.** Full guide: [[Log Forwarder ATC]].
 
 | Field | Description |
 |-------|-------------|

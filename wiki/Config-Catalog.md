@@ -264,7 +264,7 @@ Full metric catalog: [[Monitoring#5-metrics-reference]] and [`metrics_catalog`](
 
 ## `atc` — log-forwarder-atc registration
 
-Optional integration with **log-forwarder-atc**. **Disabled by default.** Requires `metrics.enabled`.
+Optional integration with **[log-forwarder-atc](https://github.com/sanjuthomas/log-forwarder-atc)**. **Disabled by default.** Requires `metrics.enabled`. Agent-side guide: **[Log Forwarder ATC wiki](https://github.com/sanjuthomas/log-forwarder/wiki/Log-Forwarder-ATC)**.
 
 | Key | What it is for | Default | When to use |
 |-----|----------------|---------|-------------|
@@ -276,7 +276,7 @@ Optional integration with **log-forwarder-atc**. **Disabled by default.** Requir
 
 **Failures:** registration and deregistration errors log at **WARN** (`atc registration status`) and do **not** stop tailing or publishing. Startup registration failure does not retry until restart.
 
-**Example:** `configs/example-spring-boot-kafka.yaml`. See [[Monitoring#8-log-forwarder-atc-integration]].
+**Example:** `configs/example-atc.yaml`, `configs/example-spring-boot-kafka.yaml`. See [[Log Forwarder ATC]] and [[Monitoring#8-log-forwarder-atc-integration]].
 
 ---
 
@@ -296,4 +296,4 @@ Optional integration with **log-forwarder-atc**. **Disabled by default.** Requir
 | Stack traces as one event | `parser.type: multiline` | [[Spring Boot Logs]] |
 | Process CPU / memory | `process_cpu_utilization`, `process_memory_usage` on `/metrics` | [[Monitoring#5-metrics-reference]] |
 | Alerting | `metrics.enabled`, readiness, Prometheus | [[Monitoring#6-What-to-alert-on]] |
-| ATC instance registry | `atc.enabled`, `atc.url`, `metrics.host`, `metrics.port` | [[Monitoring#8-log-forwarder-atc-integration]] |
+| ATC instance registry | `atc.enabled`, `atc.url`, `metrics.host`, `metrics.port` | [[Log Forwarder ATC]] |
