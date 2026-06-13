@@ -113,7 +113,7 @@ Other useful log lines:
 | `log forwarder started` | Process is up; includes sources, sink type, metrics address, and `atc_url` when ATC is enabled |
 | `sink connectivity verified` | Startup sink check passed |
 | `sink unavailable at startup` | Forwarder refused to start — destination unreachable |
-| `atc registration status` | ATC lifecycle (`status`: `disabled`, `registering`, `registered`, `failed`, `deregistering`, `deregistered`, `deregistration_failed`) — see [[Monitoring#8-log-forwarder-atc|ATC integration]] |
+| `atc registration status` | ATC lifecycle (`status`: `disabled`, `registering`, `registered`, `failed`, `deregistering`, `deregistered`, `deregistration_failed`) — see [[Log Forwarder ATC]] |
 | `shutdown signal received` | SIGINT/SIGTERM received; deregister runs before runner cancel |
 | `publish failed, retrying` | Transient publish error; check sink destination and network |
 | `forwarder stopped` | Clean or error shutdown |
@@ -201,64 +201,28 @@ Scrape at least twice (or wait one `scrape_interval`) before expecting a non-zer
 
 ## 8. log-forwarder-atc integration
 
-Optional registration with **log-forwarder-atc** (Air Traffic Controller). Disabled by default.
+Optional registration with **[log-forwarder-atc](https://github.com/sanjuthomas/log-forwarder-atc)** — a separate fleet controller that tracks agents, polls `/health` and `/ready`, and stores metric snapshots. Disabled by default.
 
-### Responsibilities
+**Full guide (both repos):** [[Log Forwarder ATC]]
+
+### Summary
 
 | Component | Role |
 |-----------|------|
-| **Forwarder** | `PUT` once after startup; `DELETE` once before shutdown. Exposes `/health` and `/ready` on `metrics.host`:`metrics.port`. |
-| **ATC** | Tracks registered instances. While they run, polls `GET /health` and `GET /ready` on the registered host and port. |
-
-The forwarder **does not** contact ATC while running (no heartbeat, no mid-run re-register).
-
-### Configuration
+| **Forwarder** | `PUT` once after startup; `DELETE` once before shutdown. Exposes `/health`, `/ready`, `/metrics` on `metrics.host`:`metrics.port`. |
+| **ATC** | Registry + fleet dashboard. Polls agents every 30s (default). No forwarder traffic while running. |
 
 ```yaml
 metrics:
   enabled: true
-  host: 0.0.0.0   # must be reachable by hostname when ATC runs remotely
+  host: 0.0.0.0
   port: 10001
 
 atc:
   enabled: true
-  url: http://localhost:8090/api/instances   # full PUT/DELETE endpoint
-  timeout: 5s                                 # optional; per registration call
+  url: http://localhost:8090/api/instances
 ```
 
-`atc.enabled` requires `metrics.enabled`. Registration uses `metrics.port` (default `8080`) in the JSON body.
+Registration failures log `atc registration status` at **WARN** and do **not** stop tailing or publishing.
 
-### Registration payload (`PUT`)
-
-```json
-{
-  "hostname": "app-server-01",
-  "port": 10001,
-  "process_id": 12345,
-  "timestamp": "2026-06-11T14:30:00.123456789Z"
-}
-```
-
-`DELETE` sends the same identity fields. `process_id` matches `/health` and `/ready`.
-
-### Failure behavior (does not block forwarding)
-
-| When | ATC down / error | Core log forwarding |
-|------|------------------|---------------------|
-| Startup `PUT` | WARN `atc registration status` `status=failed` | **Continues** — watcher and pipeline already running |
-| Running | No ATC calls | Unaffected |
-| Shutdown `DELETE` | WARN `status=deregistration_failed` | Shutdown **continues** |
-| `kill -9` / crash | No `DELETE` | ATC may show stale instance until TTL/cleanup |
-
-### Log lines to watch
-
-```
-atc registration status status=registering ...
-atc registration status status=registered ...
-atc registration status status=failed ... error=...
-shutdown signal received
-atc registration status status=deregistering ...
-atc registration status status=deregistered ...
-```
-
-See [[Config-Catalog#atc--log-forwarder-atc-registration]] and `configs/example-spring-boot-kafka.yaml`.
+See [[Log Forwarder ATC]], [`configs/example-atc.yaml`](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-atc.yaml), and [`configs/example-spring-boot-kafka.yaml`](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-spring-boot-kafka.yaml).

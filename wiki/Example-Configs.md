@@ -11,6 +11,15 @@ Copy these from the [configs/](https://github.com/sanjuthomas/log-forwarder/tree
 | [example-file.yaml](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-file.yaml) | File | Tab-delimited | JSONL to `./output/` |
 | [example-http-noauth.yaml](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-http-noauth.yaml) | HTTP | Tab-delimited | POST to localhost ingest |
 
+## Fleet monitoring (log-forwarder-atc)
+
+| Config | Sink | Notes |
+|--------|------|-------|
+| [example-atc.yaml](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-atc.yaml) | File | **Minimal ATC setup** — metrics + registration; pair with [log-forwarder-atc](https://github.com/sanjuthomas/log-forwarder-atc) |
+| [example-spring-boot-kafka.yaml](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-spring-boot-kafka.yaml) | Kafka | Spring Boot multiline + ATC enabled |
+
+See [[Log Forwarder ATC]].
+
 ## Vendor noise / ingest cost
 
 | Config | Sink | Filter | Notes |
@@ -20,11 +29,11 @@ Copy these from the [configs/](https://github.com/sanjuthomas/log-forwarder/tree
 
 ## Spring Boot (default Logback console)
 
-| Config | Sink |
-|--------|------|
-| [example-spring-boot-kafka.yaml](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-spring-boot-kafka.yaml) | Kafka |
-| [example-spring-boot-file.yaml](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-spring-boot-file.yaml) | File |
-| [example-spring-boot-http-noauth.yaml](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-spring-boot-http-noauth.yaml) | HTTP |
+| Config | Sink | Notes |
+|--------|------|-------|
+| [example-spring-boot-kafka.yaml](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-spring-boot-kafka.yaml) | Kafka | Multiline + regex; **ATC registration enabled** — see [[Log Forwarder ATC]] |
+| [example-spring-boot-file.yaml](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-spring-boot-file.yaml) | File | JSONL to `./output/` |
+| [example-spring-boot-http-noauth.yaml](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-spring-boot-http-noauth.yaml) | HTTP | POST to localhost ingest |
 
 All three share multiline parser + Spring Boot regex. See [[Spring Boot Logs]].
 

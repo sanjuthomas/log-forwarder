@@ -259,7 +259,7 @@ feature_index:
 
   atc_registration:
     description: atc.enabled — register/deregister with log-forwarder-atc at startup/shutdown; controller polls /health and /ready while running
-    configs: [example-spring-boot-kafka]
+    configs: [example-atc, example-spring-boot-kafka]
     notes: Requires metrics.enabled. One PUT at startup, one DELETE at shutdown; failures are WARN only. No mid-run ATC traffic.
 
   readiness_probe:
@@ -425,6 +425,32 @@ configs:
     features: [watermark_file, predicate_filter, pipeline_buffer_size, pipeline_on_full_block, metrics_http, logging_status_interval]
     related: [example-filter, example-spring-boot-kafka]
     tags: [kafka, filter, vendor, delimiter]
+
+  - id: example-atc
+    path: configs/example-atc.yaml
+    category: general
+    description: Minimal ATC registration — file sink, metrics on 8080, register with log-forwarder-atc
+    sink: file
+    parser: line
+    transform: delimiter
+    settings:
+      watch:
+        state_path: .log-forwarder/watermarks.json
+      metrics:
+        enabled: true
+        host: 0.0.0.0
+        port: 8080
+      atc:
+        enabled: true
+        url: http://localhost:8090/api/instances
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+      logging:
+        status_interval: default
+    features: [watermark_file, pipeline_buffer_size, pipeline_on_full_block, metrics_http, atc_registration, logging_status_interval]
+    related: [example-spring-boot-kafka, example-file]
+    tags: [file, atc, metrics, delimiter]
 
   - id: example-spring-boot-kafka
     path: configs/example-spring-boot-kafka.yaml

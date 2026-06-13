@@ -57,7 +57,7 @@ internal/
   metrics/                  OpenTelemetry → Prometheus HTTP, readiness, dead letters API
   deadletter/               Dead letter spill files and metadata
   runner/                   Concurrent watcher + pipeline lifecycle
-  atc/                      Optional instance registration
+  atc/                      Optional instance registration (log-forwarder-atc)
   integration/              End-to-end tests (excluded from per-package coverage gate)
   logging/                  Forwarder diagnostic logging
   timestamp/                Timestamp normalization helpers

@@ -63,6 +63,7 @@ The [repository README](https://github.com/sanjuthomas/log-forwarder/blob/main/R
 | Kafka, file, HTTP sinks | [[Choosing a Sink]] |
 | Spring Boot / multiline logs | [[Spring Boot Logs]] |
 | Filter vendor DEBUG noise (ingest cost) | [[Filtering Vendor Noise]] |
+| Fleet monitoring (log-forwarder-atc) | [[Log Forwarder ATC]] |
 | Watermarks, rotation, restarts | [[Watermarks and Restarts]] |
 | Built-in parsers, transforms, filters | [[Built-in-Components]] |
 | Custom parsers, sinks, filters | [[Custom-Extensions]] |

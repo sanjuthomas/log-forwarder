@@ -1,0 +1,66 @@
+# Minimal example: register with log-forwarder-atc (fleet controller).
+#
+# Prerequisites:
+#   1. Start ATC:  git clone https://github.com/sanjuthomas/log-forwarder-atc.git && cd log-forwarder-atc && docker compose up -d --build
+#   2. Open fleet dashboard: http://localhost:8090/
+#
+# Wiki: https://github.com/sanjuthomas/log-forwarder/wiki/Log-Forwarder-ATC
+#
+# Run:
+#   mkdir -p logs/app output
+#   ./bin/log-forwarder -config configs/example-atc.yaml
+#
+# Sample log line (tab-delimited):
+#   2026-06-13T14:22:01Z	INFO	e2e-probe
+
+watch:
+  poll: 1s
+  paths:
+    - ./logs/app
+  patterns:
+    - "*.log"
+  state:
+    path: .log-forwarder/watermarks.json
+
+parser:
+  type: line
+
+transform:
+  type: delimiter
+  delimiter: "\t"
+  columns:
+    - timestamp
+    - level
+    - message
+  on_error: wrap
+
+enrichers:
+  - type: static
+    fields:
+      application_id: atc-demo
+      environment: dev
+  - type: host
+
+sink:
+  type: file
+  file:
+    path: ./output/records.jsonl
+
+pipeline:
+  buffer_size: 1024
+  on_full: block
+
+metrics:
+  enabled: true
+  host: 0.0.0.0   # listen on all interfaces so ATC can reach /health and /ready by hostname
+  port: 8080
+  path: /metrics
+
+atc:
+  enabled: true
+  url: http://localhost:8090/api/instances
+  # timeout: 5s  # optional; default 5s for PUT/DELETE
+
+logging:
+  level: info
+  format: text

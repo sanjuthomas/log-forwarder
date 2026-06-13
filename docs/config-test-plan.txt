@@ -215,6 +215,7 @@ After CFG-2 + P0/P1, each example config should have at least one runtime test:
   configs/example-file.yaml                     CFG-2, E2E-24
   configs/example-http-noauth.yaml              CFG-2, E2E-24
   configs/example-filter.yaml                   CFG-2, E2E-25
+  configs/example-atc.yaml                      CFG-2
   configs/example-vendor-filter-kafka.yaml      CFG-2
   configs/example-spring-boot-kafka.yaml        CFG-2, E2E-32
   configs/example-spring-boot-file.yaml         CFG-2 (already similar to E2E-1)

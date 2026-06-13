@@ -26,3 +26,7 @@ WantedBy=multi-user.target
 ```
 
 For custom transformers or enrichers, deploy the binary built from your own entrypoint (e.g. `./examples/custom`) instead of `./cmd/log-forwarder`.
+
+## Fleet monitoring with log-forwarder-atc
+
+To track many forwarders from a central dashboard, run **[log-forwarder-atc](https://github.com/sanjuthomas/log-forwarder-atc)** alongside your agents and set `atc.enabled: true` in each config. See [[Log Forwarder ATC]] for setup on both repos, probe requirements, and failure behavior.
