@@ -97,7 +97,7 @@ func unknownTypeError(field, value string, types map[string]struct{}) error {
 }
 
 func init() {
-	for _, name := range []string{"kafka", "file", "http-noauth"} {
+	for _, name := range []string{"kafka", "file", "http-noauth", "bigquery"} {
 		RegisterSinkType(name)
 	}
 	for _, name := range []string{"static", "host"} {

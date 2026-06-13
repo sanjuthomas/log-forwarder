@@ -26,7 +26,7 @@ flowchart LR
         kafkaSink["kafka"]
         fileSink["file"]
         httpSink["http-noauth"]
-        customSink["custom · bigquery · …"]
+        customSink["custom · http-oauth2 · …"]
     end
 
     subgraph destinations["Destinations"]
@@ -47,7 +47,7 @@ flowchart LR
     customSink --> customDest
 ```
 
-The pipeline always ends at the same `sink.Sink` interface. `sink.type` in config selects the implementation; only one sink is active at runtime. Register additional types (for example `http-oauth2` or BigQuery streaming) in a custom binary — see [[Custom-Extensions]].
+The pipeline always ends at the same `sink.Sink` interface. `sink.type` in config selects the implementation; only one sink is active at runtime. Built-in sinks include `kafka`, `file`, `http-noauth`, and `bigquery`. Register additional types (for example `http-oauth2`) in a custom binary — see [[Custom-Extensions]].
 
 The [repository README](https://github.com/sanjuthomas/log-forwarder/blob/main/README.md) is a short index; **this wiki** has the full documentation.
 

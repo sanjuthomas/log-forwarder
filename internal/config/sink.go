@@ -15,6 +15,7 @@ type SinkConfig struct {
 	File       *FileSinkConfig       `yaml:"file,omitempty"`
 	Kafka      *KafkaConfig          `yaml:"kafka,omitempty"`
 	HTTPNoauth *HTTPNoauthSinkConfig `yaml:"http_noauth,omitempty"`
+	BigQuery   *BigQueryConfig       `yaml:"bigquery,omitempty"`
 	Options    map[string]any        `yaml:"options,omitempty"`
 }
 
@@ -71,6 +72,11 @@ func (c *Config) validateSink() error {
 			return fmt.Errorf("sink.http_noauth is required when sink.type is http-noauth")
 		}
 		return c.Sink.HTTPNoauth.Validate()
+	case "bigquery":
+		if c.Sink.BigQuery == nil {
+			return fmt.Errorf("sink.bigquery is required when sink.type is bigquery")
+		}
+		return c.Sink.BigQuery.Validate()
 	default:
 		// Custom sink registered via sink.Register; field validation deferred to factory.
 		return nil
@@ -136,6 +142,9 @@ func (c *Config) SinkConnectTimeout() time.Duration {
 	}
 	if c.Sink.HTTPNoauth != nil {
 		return c.Sink.HTTPNoauth.TimeoutDuration()
+	}
+	if c.Sink.BigQuery != nil {
+		return c.Sink.BigQuery.ConnectTimeoutDuration()
 	}
 	return 10 * time.Second
 }

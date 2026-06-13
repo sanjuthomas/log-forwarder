@@ -42,6 +42,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer func() { _ = logCloser.Close() }()
+	slog.SetDefault(logger)
 
 	wmOpts := watermarkOptions(cfg, *resetWatermarks)
 	watermarks, err := state.NewStore(cfg.StatePath(), wmOpts)

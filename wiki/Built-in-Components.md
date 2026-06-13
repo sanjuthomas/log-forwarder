@@ -156,5 +156,6 @@ Sinks may also implement `sink.Checker` for a startup connectivity probe. Select
 | `kafka` | Publish JSON records to a Kafka topic (default) |
 | `file` | Append JSONL to a local file |
 | `http-noauth` | POST JSON to an open HTTP endpoint (no credentials) |
+| `bigquery` | Ingest JSON records via the BigQuery Storage Write API |
 
-Register custom types with `sink.Register` in a custom binary — for example BigQuery streaming or HTTP with OAuth2. See [[Custom-Extensions#Custom-sink]].
+Register custom types with `sink.Register` in a custom binary — for example HTTP with OAuth2. See [[Custom-Extensions#Custom-sink]].

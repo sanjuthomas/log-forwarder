@@ -37,7 +37,7 @@ func Register(name string, factory Factory) {
 	config.RegisterSinkType(name)
 }
 
-// New creates the configured sink implementation (kafka, file, http-noauth, or custom).
+// New creates the configured sink implementation (kafka, file, http-noauth, bigquery, or custom).
 func New(cfg config.SinkConfig) (Sink, error) {
 	sinkType := cfg.Type
 	if sinkType == "" {

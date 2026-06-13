@@ -136,16 +136,17 @@ The `offset` stored for a committed multiline event is always the end offset of 
 
 ## `sink`
 
-Each forwarder **process** configures exactly **one** sink. There is no multi-sink or fan-out in a single config — `sink.type` selects a single implementation (`kafka`, `file`, `http-noauth`, or a custom registered type), and every published record goes to that destination only.
+Each forwarder **process** configures exactly **one** sink. There is no multi-sink or fan-out in a single config — `sink.type` selects a single implementation (`kafka`, `file`, `http-noauth`, `bigquery`, or a custom registered type), and every published record goes to that destination only.
 
-Built-in types: `kafka` (default), `file`, and `http-noauth`. Register custom sinks (for example BigQuery streaming or HTTP with OAuth2) in a custom binary — see [[Custom-Extensions#Custom-sink|Custom sink]]. Watermark behavior is described [[Watermarks-and-Restarts|above]]; it is tied to the process and source files, not to which sink type is active.
+Built-in types: `kafka` (default), `file`, `http-noauth`, and `bigquery`. Register custom sinks (for example HTTP with OAuth2) in a custom binary — see [[Custom-Extensions#Custom-sink|Custom sink]]. Watermark behavior is described [[Watermarks-and-Restarts|above]]; it is tied to the process and source files, not to which sink type is active.
 
 | Field | Description |
 |-------|-------------|
-| `type` | `kafka`, `file`, `http-noauth`, or a custom registered type |
+| `type` | `kafka`, `file`, `http-noauth`, `bigquery`, or a custom registered type |
 | `kafka` | Settings when `type` is `kafka` |
 | `file` | Settings when `type` is `file` |
 | `http_noauth` | Settings when `type` is `http-noauth` |
+| `bigquery` | Settings when `type` is `bigquery` |
 | `options` | Free-form map for custom sink implementations |
 
 ### Kafka sink
@@ -216,6 +217,48 @@ sink:
 ```
 
 Non-2xx responses are treated as publish failures and retried by the pipeline.
+
+### BigQuery sink
+
+Ingests JSON records via the [BigQuery Storage Write API](https://cloud.google.com/bigquery/docs/write-api) default stream. The destination table must exist before startup; the sink reads the table schema and maps each published JSON object to protobuf rows for append.
+
+See [`configs/example-bigquery.yaml`](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-bigquery.yaml).
+
+```yaml
+sink:
+  type: bigquery
+  bigquery:
+    project_id: my-gcp-project
+    dataset: application_logs
+    table: forwarder_events
+    credentials_file: /etc/log-forwarder/gcp-wif.json
+    connect_timeout: 30s
+    write_retries: true
+```
+
+| `bigquery` field | Description |
+|------------------|-------------|
+| `project_id` | GCP project ID |
+| `dataset` | BigQuery dataset ID |
+| `table` | Destination table name |
+| `credentials_file` | Optional path to a Workload Identity Federation external-account credential config JSON. When omitted, Application Default Credentials apply |
+| `connect_timeout` | Startup table metadata check timeout (default `30s`) |
+| `write_retries` | Enable automatic Storage Write API append retries (default `true`) |
+
+**Authentication:** Use [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation) to impersonate a service account without downloading keys. Generate the credential config with:
+
+```bash
+gcloud iam workload-identity-pools create-cred-config \
+  projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL_ID/providers/PROVIDER_ID \
+  --service-account=SERVICE_ACCOUNT@PROJECT_ID.iam.gserviceaccount.com \
+  --output-file=/etc/log-forwarder/gcp-wif.json
+```
+
+Grant the service account `roles/bigquery.dataEditor` on the dataset (or a narrower table-level IAM binding). Set `credentials_file` to the generated JSON, or export `GOOGLE_APPLICATION_CREDENTIALS` to the same path and omit `credentials_file`.
+
+**Schema:** JSON field names and types should match the BigQuery table schema. At startup the sink loads the table schema and builds a field filter. During publish, fields that are **not in the table** or have a **type mismatch** are stripped from each record (the row is still written with the remaining columns). Each dropped field path is logged once at **WARN** (`bigquery: dropping field from record`). **Required** columns missing from the record (or dropped due to mismatch) are filled with type defaults (`""`, `0`, `false`, `[]`, nested record defaults, etc.) before append.
+
+**Delivery semantics:** The default stream provides at-least-once delivery. Combined with pipeline retries and optional `write_retries`, consumers should assume duplicates are possible.
 
 ## `parser`
 

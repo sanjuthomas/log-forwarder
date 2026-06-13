@@ -169,6 +169,19 @@ func TestSinkConnectTimeoutAndStatePersistOptions(t *testing.T) {
 		t.Fatalf("SinkConnectTimeout() = %v", got)
 	}
 
+	cfg.Sink = SinkConfig{
+		Type: "bigquery",
+		BigQuery: &BigQueryConfig{
+			ProjectID:      "proj",
+			Dataset:        "logs",
+			Table:          "events",
+			ConnectTimeout: "12s",
+		},
+	}
+	if got := cfg.SinkConnectTimeout(); got != 12*time.Second {
+		t.Fatalf("SinkConnectTimeout() = %v", got)
+	}
+
 	cfg.Sink = SinkConfig{Type: "file", File: &FileSinkConfig{Path: t.TempDir() + "/out.jsonl"}}
 	if got := cfg.SinkConnectTimeout(); got != 10*time.Second {
 		t.Fatalf("SinkConnectTimeout() = %v", got)

@@ -123,7 +123,7 @@ One sink per forwarder process. See [[Choosing a Sink]].
 | Key | What it is for | Default | When to use |
 |-----|----------------|---------|-------------|
 | `sink.type` | Destination implementation | `kafka` | `kafka`, `file`, `http-noauth`, or custom registered type |
-| `sink.options` | Free-form map for custom sinks | — | Custom binary sinks (BigQuery, OAuth HTTP, …). See [[Custom-Extensions]] |
+| `sink.options` | Free-form map for custom sinks | — | Custom binary sinks (OAuth HTTP, S3, …). See [[Custom-Extensions]] |
 
 ### `sink.kafka`
 

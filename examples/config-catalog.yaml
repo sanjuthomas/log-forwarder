@@ -377,6 +377,23 @@ configs:
     features: [pipeline_buffer_size, pipeline_on_full_block]
     tags: [http-noauth, delimiter]
 
+  - id: example-bigquery
+    path: configs/example-bigquery.yaml
+    category: general
+    description: Tab-delimited logs to BigQuery via Storage Write API and WIF credentials
+    sink: bigquery
+    parser: line
+    transform: delimiter
+    settings:
+      pipeline:
+        buffer_size: 1024
+        on_full: block
+        publish_batch:
+          max_bytes: 1048576
+          flush_interval: 1s
+    features: [pipeline_buffer_size, pipeline_on_full_block, publish_batch]
+    tags: [bigquery, gcp, delimiter]
+
   - id: example-filter
     path: configs/example-filter.yaml
     category: general

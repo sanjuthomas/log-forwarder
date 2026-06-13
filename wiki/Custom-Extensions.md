@@ -194,10 +194,10 @@ type Checker interface {
 
 ```go
 func init() {
-    sink.Register("bigquery", func(cfg config.SinkConfig) (sink.Sink, error) {
-        project, _ := cfg.Options["project"].(string)
-        dataset, _ := cfg.Options["dataset"].(string)
-        return newBigQuerySink(project, dataset)
+    sink.Register("s3", func(cfg config.SinkConfig) (sink.Sink, error) {
+        bucket, _ := cfg.Options["bucket"].(string)
+        prefix, _ := cfg.Options["prefix"].(string)
+        return newS3Sink(bucket, prefix)
     })
 }
 ```
@@ -206,13 +206,15 @@ func init() {
 
 ```yaml
 sink:
-  type: bigquery
+  type: s3
   options:
-    project: my-gcp-project
-    dataset: application_logs
+    bucket: my-log-archive
+    prefix: application-logs/
 ```
 
-The factory receives the full `SinkConfig`, so custom sinks can read `options` and ignore built-in `kafka` / `file` / `http_noauth` blocks.
+The factory receives the full `SinkConfig`, so custom sinks can read `options` and ignore built-in `kafka` / `file` / `http_noauth` / `bigquery` blocks.
+
+> **BigQuery:** A built-in `bigquery` sink ships with the default binary — see [[Choosing-a-Sink#BigQuery (`sink.type: bigquery`)]] and [`configs/example-bigquery.yaml`](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-bigquery.yaml).
 
 ## Build and run the custom binary
 

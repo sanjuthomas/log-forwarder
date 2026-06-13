@@ -9,6 +9,7 @@ The **sink** is where structured JSON records go after parsing and enrichment. E
 | `kafka` | Production streaming, analytics, central log bus | TLS / SASL supported | `configs/example-spring-boot-kafka.yaml` |
 | `file` | Local debugging, JSONL archive, ad-hoc analysis | Filesystem permissions only | `configs/example-spring-boot-file.yaml` |
 | `http-noauth` | Internal ingest behind network policy | **None** — open endpoint only | `configs/example-spring-boot-http-noauth.yaml` |
+| `bigquery` | GCP analytics, long-term storage, SQL over logs | Workload Identity Federation (or ADC) | `configs/example-bigquery.yaml` |
 
 ## Kafka (`sink.type: kafka`)
 
@@ -87,6 +88,37 @@ sink:
 
 > **OAuth2 / API keys:** not supported by this built-in sink. Use [[Custom-Extensions#Custom-sink|a custom sink]] or a future dedicated sink type.
 
+## BigQuery (`sink.type: bigquery`)
+
+Uses the [BigQuery Storage Write API](https://cloud.google.com/bigquery/docs/write-api) default stream for low-latency, at-least-once ingestion. JSON records are mapped to an existing table schema at startup.
+
+```yaml
+sink:
+  type: bigquery
+  bigquery:
+    project_id: my-gcp-project
+    dataset: application_logs
+    table: forwarder_events
+    credentials_file: /etc/log-forwarder/gcp-wif.json
+    connect_timeout: 30s
+    write_retries: true
+```
+
+| Setting | Description |
+|---------|-------------|
+| `project_id` | GCP project containing the dataset |
+| `dataset` | BigQuery dataset ID |
+| `table` | Destination table (must exist with a schema matching pipeline JSON fields) |
+| `credentials_file` | Optional path to a Workload Identity Federation credential config JSON (from `gcloud iam workload-identity-pools create-cred-config`). When omitted, Application Default Credentials are used (`GOOGLE_APPLICATION_CREDENTIALS`, GCE/GKE metadata, etc.) |
+| `connect_timeout` | Startup table metadata check timeout (default `30s`) |
+| `write_retries` | Enable Storage Write API append retries (default `true`) |
+
+**Authentication:** Prefer [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation) over long-lived service account keys. Generate a credential config file with `gcloud iam workload-identity-pools create-cred-config`, mount it into the forwarder, and set `credentials_file` (or point `GOOGLE_APPLICATION_CREDENTIALS` at the same file).
+
+**You need:** a pre-created table, `roles/bigquery.dataEditor` (or narrower table-level grant) on the impersonated service account, and network egress to `bigquery.googleapis.com` and `bigquerystorage.googleapis.com`.
+
+See [`configs/example-bigquery.yaml`](https://github.com/sanjuthomas/log-forwarder/blob/main/configs/example-bigquery.yaml) and [[Configuration-Reference#BigQuery sink]].
+
 ## One sink per process — common patterns
 
 ### Production: Kafka only
@@ -120,7 +152,7 @@ To backfill the new sink, clear watermarks — [[Watermarks and Restarts]].
 
 ## Custom sinks
 
-For BigQuery, S3, authenticated HTTP, etc., build a custom binary that registers your sink type. See [[Custom-Extensions#Custom-sink]].
+For S3, authenticated HTTP, or proprietary endpoints, build a custom binary that registers your sink type. BigQuery is a built-in sink — see above. See [[Custom-Extensions#Custom-sink]].
 
 ---
 
@@ -128,7 +160,7 @@ For BigQuery, S3, authenticated HTTP, etc., build a custom binary that registers
 
 Each forwarder **process** configures exactly **one** sink. There is no multi-sink or fan-out in a single config — `sink.type` selects a single implementation (`kafka`, `file`, `http-noauth`, or a custom registered type), and every published record goes to that destination only.
 
-Built-in types: `kafka` (default), `file`, and `http-noauth`. Register custom sinks (for example BigQuery streaming or HTTP with OAuth2) in a custom binary — see [[Custom-Extensions#Custom-sink|Custom sink]]. Watermark behavior is described [[Watermarks-and-Restarts|above]]; it is tied to the process and source files, not to which sink type is active.
+Built-in types: `kafka` (default), `file`, `http-noauth`, and `bigquery`. Register custom sinks (for example HTTP with OAuth2) in a custom binary — see [[Custom-Extensions#Custom-sink|Custom sink]]. Watermark behavior is described [[Watermarks-and-Restarts|above]]; it is tied to the process and source files, not to which sink type is active.
 
 | Field | Description |
 |-------|-------------|

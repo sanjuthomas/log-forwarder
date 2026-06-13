@@ -1,0 +1,51 @@
+# BigQuery sink using the Storage Write API (default stream).
+#
+# Prerequisites:
+#   1. Create a BigQuery table whose schema matches the JSON fields your pipeline emits.
+#   2. Grant the target service account roles/bigquery.dataEditor on the dataset (or table).
+#   3. Configure Workload Identity Federation and generate a credential config file:
+#
+#        gcloud iam workload-identity-pools create-cred-config \
+#          projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL_ID/providers/PROVIDER_ID \
+#          --service-account=SERVICE_ACCOUNT@PROJECT_ID.iam.gserviceaccount.com \
+#          --output-file=/etc/log-forwarder/gcp-wif.json
+#
+#      Alternatively set GOOGLE_APPLICATION_CREDENTIALS to that file and omit credentials_file.
+#
+# Example table schema (create in BigQuery before starting):
+#   level STRING, message STRING, timestamp TIMESTAMP, _path STRING
+watch:
+  poll: 1s
+  sources:
+    - path: ./logs/app
+      patterns:
+        - "*.log"
+
+sink:
+  type: bigquery
+  bigquery:
+    project_id: my-gcp-project
+    dataset: application_logs
+    table: forwarder_events
+    credentials_file: /etc/log-forwarder/gcp-wif.json
+    connect_timeout: 30s
+    write_retries: true
+
+transform:
+  type: delimiter
+  delimiter: "\t"
+  columns:
+    - timestamp
+    - level
+    - message
+  on_error: wrap
+
+enrichers:
+  - type: host
+
+pipeline:
+  buffer_size: 1024
+  on_full: block
+  publish_batch:
+    max_bytes: 1048576
+    flush_interval: 1s
