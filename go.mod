@@ -3,6 +3,7 @@ module github.com/sanjuthomas/log-forwarder
 go 1.26.4
 
 require (
+	cloud.google.com/go/auth v0.18.2
 	cloud.google.com/go/bigquery v1.75.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/prometheus/client_golang v1.23.2
@@ -22,7 +23,6 @@ require (
 
 require (
 	cloud.google.com/go v0.123.0 // indirect
-	cloud.google.com/go/auth v0.18.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.5.3 // indirect
