@@ -288,3 +288,51 @@ func TestPrometheusHandlerNilCollector(t *testing.T) {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
 }
+
+func TestRecordMethodsNilReceiverAndPartialCollector(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	var nilCollector *Collector
+	nilCollector.RecordLineRead(ctx, 1)
+	nilCollector.RecordLineReplayed(ctx, 1)
+	nilCollector.RecordLineBufferDropped(ctx)
+	nilCollector.RecordPublishFailure(ctx)
+	nilCollector.RecordPublishRetry(ctx)
+	nilCollector.RecordPublishDuration(ctx, time.Millisecond)
+	nilCollector.RecordWatermarkFlushError(ctx)
+
+	partial := &Collector{}
+	partial.RecordLineRead(ctx, 1)
+	partial.RecordLineReplayed(ctx, 1)
+	partial.RecordLineBufferDropped(ctx)
+	partial.RecordPublishFailure(ctx)
+	partial.RecordPublishRetry(ctx)
+	partial.RecordPublishDuration(ctx, time.Millisecond)
+	partial.RecordWatermarkFlushError(ctx)
+}
+
+func TestCollectorStartNilServer(t *testing.T) {
+	t.Parallel()
+
+	var collector Collector
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if err := collector.Start(logger); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+}
+
+func TestRecordPublishBatchFlushPartialCollector(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	c := &Collector{
+		publishBatchFlushes: nil,
+		publishBatchSize:    nil,
+		publishBatchBytes:   nil,
+	}
+	c.RecordPublishBatchFlush(ctx, "timer", "success", 1, 64)
+
+	var nilCollector *Collector
+	nilCollector.RecordPublishBatchFlush(ctx, "timer", "success", 1, 64)
+}
