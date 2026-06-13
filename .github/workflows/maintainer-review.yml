@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Verify maintainer approval for external contributors
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const maintainer = 'sanjuthomas';
